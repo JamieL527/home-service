@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+  MARKETING
+  DATA_COLLECTOR
+  CONTRACTOR
+}
+
+enum LeadStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  QUALIFIED
+  NEEDS_FIX
+  RESUBMITTED
+  REJECTED
+  CONVERTED
+  NEW_LEAD
+  BACKED
+  URGENT
+  PARKED
+  SCHEDULED
+  INJECTED
+  JOB_ACTIVE
+}
+
+enum JobStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+}
+
+enum ContractorCompanyStatus {
+  UNVERIFIED_PROFILE
+  PENDING_APPROVAL
+  ACTIVE
+  REJECTED
+  ACTION_REQUIRED
+}
+
+model User {
+  id                  String             @id @default(uuid())
+  email               String             @unique
+  role                Role
+  firstName           String?
+  lastName            String?
+  contractorCompanyId String?
+  contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
+  createdAt           DateTime           @default(now())
+}
+
+model ContractorCompany {
+  id              String                  @id @default(uuid())
+  name            String
+  status          ContractorCompanyStatus @default(UNVERIFIED_PROFILE)
+  businessNumber  String?
+  address         String?
+  website         String?
+  wsibNumber      String?
+  insuranceNumber String?
+  contactName     String?
+  contactTitle    String?
+  contactEmail    String?
+  contactPhone    String?
+  termsAccepted   Boolean                 @default(false)
+  termsAcceptedAt DateTime?
+  adminNote       String?
+  users           User[]
+  contractors     Contractor[]
+  createdAt       DateTime                @default(now())
+}
+
+model Lead {
+  id             String     @id @default(uuid())
+  address        String
+  lat            Float?
+  lng            Float?
+  status         LeadStatus @default(DRAFT)
+  source         String?
+  phase          String?
+  initialComment String?
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  businessName   String?
+  officeLocation String?
+  rating         String?
+  website        String?
+
+  cityData       Json?
+  photos         Json?
+  ocrData        Json?
+
+  zoneName          String?
+  isUrgent          Boolean    @default(false)
+  scheduledInjectAt DateTime?
+
+  contacts       LeadContact[]
+  jobs           Job[]
+  deals          Deal[]
+}
+
+model LeadContact {
+  id     String  @id @default(uuid())
+  leadId String
+  lead   Lead    @relation(fields: [leadId], references: [id])
+  name   String?
+  email  String?
+  phone  String?
+  role   String?
+}
+
+model Job {
+  id           String      @id @default(uuid())
+  leadId       String
+  lead         Lead        @relation(fields: [leadId], references: [id])
+  scope        String?
+  price        Float?
+  phase        String?
+  status       JobStatus   @default(PENDING)
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id])
+  createdAt    DateTime    @default(now())
+}
+
+model Contractor {
+  id        String            @id @default(uuid())
+  companyId String
+  company   ContractorCompany @relation(fields: [companyId], references: [id])
+  tradeType String
+  location  String?
+  jobs      Job[]
+  createdAt DateTime          @default(now())
+}
+
+model Deal {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  value     Float?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+}

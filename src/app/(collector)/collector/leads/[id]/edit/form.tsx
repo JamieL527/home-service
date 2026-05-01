@@ -395,22 +395,20 @@ export function EditLeadForm({ leadId, initial }: Props) {
                       <Loader2 size={12} className="animate-spin text-gray-400" />
                     )}
                     <input
+                      id={`edit-photo-${key}`}
                       ref={photoInputRefs[key]}
                       type="file"
                       accept="image/*"
-                      
                       multiple
                       className="hidden"
                       onChange={(e) => handlePhotoUpload(e, key)}
                     />
-                    <button
-                      type="button"
-                      disabled={uploadingCat !== null}
-                      onClick={() => photoInputRefs[key].current?.click()}
-                      className="flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg px-2 py-1 transition-colors disabled:opacity-40"
+                    <label
+                      htmlFor={uploadingCat !== null ? undefined : `edit-photo-${key}`}
+                      className={`flex items-center gap-1 text-[11px] font-bold text-gray-500 border border-gray-300 rounded-lg px-2 py-1 transition-colors cursor-pointer ${uploadingCat !== null ? 'opacity-40 pointer-events-none' : 'hover:text-gray-700'}`}
                     >
                       <Plus size={11} /> Add
-                    </button>
+                    </label>
                   </div>
                 </div>
                 <PhotoGrid

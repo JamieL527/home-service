@@ -684,12 +684,12 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
             <div className="grid grid-cols-4 gap-2">
               {PHOTO_ITEMS.map(({ key, label, Icon }) => (
                 <div key={key} className="space-y-1">
-                  {/* Hidden file input */}
+                  {/* Hidden file input — use label association so iOS opens picker */}
                   <input
+                    id={`photo-${key}`}
                     type="file"
                     multiple
                     accept="image/*"
-                    
                     ref={photoRefs[key]}
                     className="hidden"
                     onChange={(e) => onPhotoChange(e, key)}
@@ -717,54 +717,53 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                           {photoUrls[key].length}
                         </span>
                       )}
-                      {/* Add more button */}
-                      <button
-                        type="button"
-                        onClick={() => photoRefs[key].current?.click()}
-                        className="absolute top-1 right-1 bg-white/90 hover:bg-white rounded-full p-0.5 shadow-sm transition-colors"
+                      {/* Add more — label triggers file input directly */}
+                      <label
+                        htmlFor={`photo-${key}`}
+                        className="absolute top-1 right-1 bg-white/90 hover:bg-white rounded-full p-0.5 shadow-sm transition-colors cursor-pointer"
                       >
                         <Plus size={10} className="text-gray-700" />
-                      </button>
+                      </label>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => photoRefs[key].current?.click()}
-                      className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-[10px] font-bold bg-white border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-all active:scale-95 select-none"
+                    <label
+                      htmlFor={`photo-${key}`}
+                      className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-[10px] font-bold bg-white border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-all active:scale-95 select-none cursor-pointer"
                     >
                       <Icon size={14} className="mb-0.5" />
                       {label}
-                    </button>
+                    </label>
                   )}
 
                   {/* OCR scan */}
                   <input
+                    id={`ocr-${key}`}
                     type="file"
                     accept="image/*"
-                    
                     ref={ocrRefs[key]}
                     className="hidden"
                     onChange={(e) => onOcrFileSelected(e, key)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (photoUrls[key].length > 0) {
-                        // Scan the most recently uploaded photo for this category
-                        scanExistingPhoto(photoUrls[key][photoUrls[key].length - 1], key)
-                      } else {
-                        // No photo yet — open file picker
-                        ocrRefs[key].current?.click()
+                  {photoUrls[key].length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => scanExistingPhoto(photoUrls[key][photoUrls[key].length - 1], key)}
+                      disabled={ocrLoading}
+                      className="w-full h-10 border border-indigo-200 rounded-lg flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40"
+                    >
+                      {ocrLoading && ocrSource === key
+                        ? <><Loader2 size={11} className="animate-spin" /> Scanning…</>
+                        : <><ScanText size={11} /> Scan Text</>
                       }
-                    }}
-                    disabled={ocrLoading}
-                    className="w-full h-10 border border-indigo-200 rounded-lg flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40"
-                  >
-                    {ocrLoading && ocrSource === key
-                      ? <><Loader2 size={11} className="animate-spin" /> Scanning…</>
-                      : <><ScanText size={11} /> Scan Text</>
-                    }
-                  </button>
+                    </button>
+                  ) : (
+                    <label
+                      htmlFor={`ocr-${key}`}
+                      className="w-full h-10 border border-indigo-200 rounded-lg flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <ScanText size={11} /> Scan Text
+                    </label>
+                  )}
                 </div>
               ))}
             </div>

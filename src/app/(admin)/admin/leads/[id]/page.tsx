@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { LeadActionButtons } from '@/components/admin/lead-action-buttons'
 import {
-  MapPin, Layers, Building, Hammer, MessageCircle,
-  Users, Phone, Mail,
+  MapPin, Building, Hammer, MessageCircle,
+  Users, Phone, Mail, Camera, Database, FileText,
 } from 'lucide-react'
+import { PhotoGrid, type PhotoItem } from '@/components/ui/photo-grid'
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
@@ -43,20 +44,21 @@ const STATUS_COLORS: Record<string, string> = {
   JOB_ACTIVE: 'bg-purple-100 text-purple-700',
 }
 
+const PHASE_LABELS: Record<string, string> = {
+  P0: 'Phase 0: Survey',
+  P1: 'Phase 1: Foundation',
+  P2: 'Phase 2: Framing',
+  P3: 'Phase 3: MEC/Drywall',
+  P4: 'Phase 4: Finishing',
+  P5: 'Phase 5: Landscaping',
+  MLS: 'MLS: Renovation',
+}
+
 function SectionCard({
-  Icon,
-  title,
-  colorClass,
-  bgClass,
-  borderClass,
-  children,
+  Icon, title, colorClass, bgClass, borderClass, children,
 }: {
-  Icon: React.ElementType
-  title: string
-  colorClass: string
-  bgClass: string
-  borderClass: string
-  children: React.ReactNode
+  Icon: React.ElementType; title: string; colorClass: string
+  bgClass: string; borderClass: string; children: React.ReactNode
 }) {
   return (
     <div className={`${bgClass} p-4 rounded-xl border ${borderClass} shadow-sm`}>
@@ -74,9 +76,15 @@ function DataRow({ label, value }: { label: string; value?: string | null }) {
     <div>
       <dt className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{label}</dt>
       <dd className="text-sm text-gray-800 font-medium">
-        {value?.trim() || <span className="text-gray-300 font-normal">—</span>}
+        {value?.trim() ? value : <span className="text-gray-300 font-normal">—</span>}
       </dd>
     </div>
+  )
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <p className="text-xs text-gray-400 italic">{text}</p>
   )
 }
 
@@ -88,6 +96,21 @@ function getActionVariant(status: string): 'evaluation-new' | 'evaluation-backed
   return null
 }
 
+type CityData = {
+  permitNumber?: string | null
+  permitStatus?: string | null
+  propertyValue?: string | null
+  [key: string]: unknown
+}
+
+type PhotosData = {
+  site?: string[]
+  demand?: string[]
+  supply?: string[]
+  other?: string[]
+  [key: string]: unknown
+}
+
 export default async function AdminLeadDetailPage({
   params,
 }: {
@@ -97,12 +120,22 @@ export default async function AdminLeadDetailPage({
 
   const lead = await prisma.lead.findUnique({
     where: { id },
-    include: { contacts: true, jobs: true },
+    include: { contacts: true, jobs: true, suppliers: true },
   })
 
   if (!lead) notFound()
 
   const actionVariant = getActionVariant(lead.status)
+
+  const cityData = lead.cityData as CityData | null
+  const photosData = lead.photos as PhotosData | null
+
+  const photoCategories: { key: keyof PhotosData; label: string }[] = [
+    { key: 'site', label: 'Site' },
+    { key: 'demand', label: 'Demand' },
+    { key: 'supply', label: 'Supply' },
+    { key: 'other', label: 'Other' },
+  ]
 
   return (
     <div className="max-w-2xl animate-fadeIn">
@@ -113,6 +146,7 @@ export default async function AdminLeadDetailPage({
         ← Evaluation
       </Link>
 
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
           <h1 className="text-xl font-black text-gray-900 leading-tight">{lead.address}</h1>
@@ -120,17 +154,16 @@ export default async function AdminLeadDetailPage({
             Created {lead.createdAt.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
-              STATUS_COLORS[lead.status] ?? 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {STATUS_LABELS[lead.status] ?? lead.status}
-          </span>
-        </div>
+        <span
+          className={`shrink-0 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+            STATUS_COLORS[lead.status] ?? 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          {STATUS_LABELS[lead.status] ?? lead.status}
+        </span>
       </div>
 
+      {/* Actions panel */}
       {actionVariant && (
         <div className="mb-5 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Actions</p>
@@ -139,57 +172,78 @@ export default async function AdminLeadDetailPage({
       )}
 
       <div className="space-y-4">
+
+        {/* 1. Location */}
         <SectionCard
-          Icon={MapPin}
-          title="Location"
-          colorClass="text-gray-500"
-          bgClass="bg-gray-50"
-          borderClass="border-gray-200"
+          Icon={MapPin} title="1. Location"
+          colorClass="text-gray-600" bgClass="bg-gray-50" borderClass="border-gray-200"
         >
-          <p className="text-sm font-semibold text-gray-800">{lead.address}</p>
-          {lead.lat && lead.lng && (
-            <p className="text-xs text-gray-400 mt-1">{lead.lat.toFixed(6)}, {lead.lng.toFixed(6)}</p>
+          <dl className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <DataRow label="Address" value={lead.address} />
+            </div>
+            <DataRow
+              label="Phase"
+              value={lead.phase ? (PHASE_LABELS[lead.phase] ?? lead.phase) : null}
+            />
+            <DataRow label="Zone Name" value={lead.zoneName} />
+            {lead.lat && lead.lng && (
+              <>
+                <DataRow label="Latitude" value={String(lead.lat.toFixed(6))} />
+                <DataRow label="Longitude" value={String(lead.lng.toFixed(6))} />
+              </>
+            )}
+          </dl>
+        </SectionCard>
+
+        {/* 2. City Data */}
+        <SectionCard
+          Icon={Database} title="2. City Data"
+          colorClass="text-purple-700" bgClass="bg-purple-50" borderClass="border-purple-100"
+        >
+          {cityData ? (
+            <dl className="grid grid-cols-2 gap-4">
+              <DataRow label="Permit Number" value={cityData.permitNumber} />
+              <DataRow label="Permit Status" value={cityData.permitStatus} />
+              <div className="col-span-2">
+                <DataRow label="Property Value" value={cityData.propertyValue} />
+              </div>
+            </dl>
+          ) : (
+            <EmptyState text="City data not yet available (pending API integration)." />
           )}
         </SectionCard>
 
+        {/* 3. Demand Side */}
         <SectionCard
-          Icon={Layers}
-          title="Phase"
-          colorClass="text-indigo-600"
-          bgClass="bg-indigo-50"
-          borderClass="border-indigo-100"
+          Icon={Building} title="3. Demand Side"
+          colorClass="text-blue-700" bgClass="bg-blue-50" borderClass="border-blue-100"
         >
-          <p className="text-sm font-semibold text-gray-800">{lead.phase || <span className="text-gray-300 font-normal">—</span>}</p>
-        </SectionCard>
-
-        <SectionCard
-          Icon={Building}
-          title="Demand Side"
-          colorClass="text-blue-700"
-          bgClass="bg-blue-50"
-          borderClass="border-blue-100"
-        >
-          <dl className="grid grid-cols-2 gap-4">
+          <dl className="grid grid-cols-2 gap-4 mb-4">
             <DataRow label="Business Name" value={lead.businessName} />
             <DataRow label="Rating" value={lead.rating} />
             <DataRow label="Website" value={lead.website} />
             <DataRow label="Office Location" value={lead.officeLocation} />
           </dl>
 
-          {lead.contacts.length > 0 && (
-            <div className="mt-5 space-y-3">
-              <div className="flex items-center gap-1.5">
-                <Users size={13} className="text-blue-500" />
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Personnel In Charge</span>
-              </div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <Users size={13} className="text-blue-500" />
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Personnel In Charge</span>
+          </div>
+          {lead.contacts.length > 0 ? (
+            <div className="space-y-3">
               {lead.contacts.map((contact, i) => (
                 <div key={contact.id} className="bg-white rounded-lg border border-blue-200 p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <p className="text-sm font-bold text-gray-800">{contact.name || '—'}</p>
-                      {contact.role && <p className="text-xs text-blue-600 font-semibold">{contact.role}</p>}
+                      {contact.role && (
+                        <p className="text-xs text-blue-600 font-semibold">{contact.role}</p>
+                      )}
                     </div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Contact {i + 1}</span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                      Contact {i + 1}
+                    </span>
                   </div>
                   <div className="flex flex-col gap-1">
                     {contact.phone && (
@@ -206,45 +260,111 @@ export default async function AdminLeadDetailPage({
                 </div>
               ))}
             </div>
+          ) : (
+            <EmptyState text="No contact information recorded." />
           )}
         </SectionCard>
 
+        {/* 4. Supply Side */}
         <SectionCard
-          Icon={Hammer}
-          title="Supply Information"
-          colorClass="text-amber-700"
-          bgClass="bg-amber-50"
-          borderClass="border-amber-100"
+          Icon={Hammer} title="4. Supply Side"
+          colorClass="text-amber-700" bgClass="bg-amber-50" borderClass="border-amber-100"
         >
-          <DataRow label="Zone Name" value={lead.zoneName} />
+          {lead.suppliers.length > 0 ? (
+            <div className="space-y-3">
+              {lead.suppliers.map((s) => (
+                <div key={s.id} className="bg-white rounded-lg border border-amber-200 p-3">
+                  <div className="flex items-start justify-between mb-1">
+                    <p className="text-sm font-bold text-gray-800">
+                      {s.trade ? `${s.trade}: ` : ''}{s.company || '—'}
+                    </p>
+                    {s.interaction && (
+                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide ml-2 shrink-0">
+                        {s.interaction}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 mt-1">
+                    {s.contact && (
+                      <p className="text-xs text-gray-600 font-medium">{s.contact}</p>
+                    )}
+                    {s.phone && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Phone size={11} className="text-gray-400" />{s.phone}
+                      </div>
+                    )}
+                    {s.email && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Mail size={11} className="text-gray-400" />{s.email}
+                      </div>
+                    )}
+                    {s.website && (
+                      <p className="text-xs text-gray-500 truncate">{s.website}</p>
+                    )}
+                    {s.officeLocation && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <MapPin size={11} className="text-gray-400" />{s.officeLocation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState text="No supply-side contractors recorded." />
+          )}
         </SectionCard>
 
-        {lead.initialComment && (
-          <SectionCard
-            Icon={MessageCircle}
-            title="Field Notes"
-            colorClass="text-teal-600"
-            bgClass="bg-teal-50"
-            borderClass="border-teal-100"
-          >
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{lead.initialComment}</p>
-          </SectionCard>
-        )}
+        {/* 5. Photos */}
+        <SectionCard
+          Icon={Camera} title="5. Visual Evidence"
+          colorClass="text-gray-500" bgClass="bg-gray-50" borderClass="border-gray-200"
+        >
+          {(() => {
+            const flat: PhotoItem[] = photoCategories.flatMap(({ key, label }) =>
+              ((photosData?.[key] as string[] | undefined) ?? []).map((url) => ({ url, label }))
+            )
+            return <PhotoGrid photos={flat} columns={4} emptyText="No photos uploaded." />
+          })()}
+        </SectionCard>
 
+        {/* 6. Field Notes */}
+        <SectionCard
+          Icon={MessageCircle} title="6. Field Notes"
+          colorClass="text-teal-600" bgClass="bg-teal-50" borderClass="border-teal-100"
+        >
+          {lead.initialComment?.trim() ? (
+            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {lead.initialComment}
+            </p>
+          ) : (
+            <EmptyState text="No field notes recorded." />
+          )}
+        </SectionCard>
+
+        {/* Linked Jobs */}
         {lead.jobs.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Linked Jobs</p>
+            <div className="flex items-center gap-1.5 mb-3">
+              <FileText size={14} className="text-gray-400" />
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Linked Jobs</p>
+            </div>
             {lead.jobs.map((job) => (
-              <div key={job.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+              <Link
+                key={job.id}
+                href={`/admin/jobs/${job.id}`}
+                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 -mx-1 px-1 rounded transition-colors"
+              >
                 <div>
                   <p className="text-xs font-bold text-gray-700">Job #{job.id.slice(0, 8)}</p>
                   <p className="text-[11px] text-gray-400">{job.phase ?? '—'} · {job.status}</p>
                 </div>
                 <span className="text-[11px] text-gray-500">{job.createdAt.toLocaleDateString('en-CA')}</span>
-              </div>
+              </Link>
             ))}
           </div>
         )}
+
       </div>
     </div>
   )

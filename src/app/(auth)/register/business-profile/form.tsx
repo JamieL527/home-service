@@ -58,6 +58,7 @@ export type BusinessProfileValues = {
   businessNumber: string
   address: string
   website: string
+  tradeType: string
   contactName: string
   contactTitle: string
   contactEmail: string
@@ -128,6 +129,34 @@ export function BusinessProfileForm({
                 placeholder="https://yourcompany.com"
                 defaultValue={initialValues?.website}
               />
+              <div className="space-y-1.5">
+                <label htmlFor="tradeType" className={labelClass}>
+                  Trade / Service Type
+                  <span className="ml-1 text-xs text-muted-foreground">(required)</span>
+                </label>
+                <select
+                  id="tradeType"
+                  name="tradeType"
+                  required
+                  defaultValue={initialValues?.tradeType ?? ''}
+                  className={inputClass}
+                >
+                  <option value="" disabled>Select your primary trade...</option>
+                  <option value="General Contractor">General Contractor</option>
+                  <option value="Framing">Framing</option>
+                  <option value="Foundation">Foundation</option>
+                  <option value="Electrical">Electrical</option>
+                  <option value="Plumbing">Plumbing</option>
+                  <option value="HVAC">HVAC / Mechanical</option>
+                  <option value="Drywall">Drywall</option>
+                  <option value="Roofing">Roofing</option>
+                  <option value="Flooring">Flooring</option>
+                  <option value="Painting">Painting</option>
+                  <option value="Landscaping">Landscaping</option>
+                  <option value="Renovation">Renovation / MLS</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
             </div>
           </div>
 

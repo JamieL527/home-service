@@ -5,15 +5,15 @@ import { Button } from '@/components/ui/button'
 export default function CollectorLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="w-56 shrink-0 border-r border-border bg-card">
-        <div className="flex h-14 items-center border-b border-border px-4">
-          <span className="text-2xl font-semibold text-foreground">Data Collector</span>
+      <aside className="w-56 shrink-0 border-r border-white/10 bg-[#1a2e4a]">
+        <div className="flex h-14 items-center border-b border-white/10 px-4">
+          <span className="text-2xl font-bold text-white">Data Collector</span>
         </div>
         <CollectorSidebarNav />
       </aside>
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6">
-          <span className="text-2xl font-medium text-foreground">Home Service Platform</span>
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-white px-6">
+          <span className="text-2xl font-medium text-gray-500">Blue Jays On Air</span>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
               Sign out

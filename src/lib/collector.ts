@@ -15,6 +15,7 @@ export async function requireCollectorUser() {
 
   const prismaUser = await prisma.user.findFirst({
     where: { email: { equals: user.email, mode: 'insensitive' } },
+    include: { zone: true },
   })
 
   if (!prismaUser || prismaUser.role !== 'DATA_COLLECTOR') {

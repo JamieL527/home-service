@@ -12,25 +12,31 @@ const selectClass =
   'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
 const ROLES = [
-    { value: 'ADMIN', label: 'Admin' },
-  { value: 'SALES', label: 'Sales' },
-  { value: 'MARKETING', label: 'Marketing' },
+  { value: 'ADMIN',          label: 'Admin' },
+  { value: 'SALES',          label: 'Sales' },
+  { value: 'MARKETING',      label: 'Marketing' },
   { value: 'DATA_COLLECTOR', label: 'Data Collector' },
 ]
 
-export function InviteUserButton() {
+type Zone = { id: string; name: string; color: string | null }
+
+export function InviteUserButton({ zones }: { zones: Zone[] }) {
   const [open, setOpen] = useState(false)
   const [state, action, pending] = useActionState(inviteInternalUser, null)
+  const [selectedRole, setSelectedRole] = useState('')
 
   useEffect(() => {
-    if (state && 'success' in state) {
-      setOpen(false)
-    }
+    if (state && 'success' in state) setOpen(false)
   }, [state])
 
+  function handleOpenChange(val: boolean) {
+    setOpen(val)
+    if (!val) setSelectedRole('')
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger render={<Button size="sm">Invite User</Button>} />
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+      <Dialog.Trigger render={<Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">Invite User</Button>} />
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-6 shadow-xl outline-none">
@@ -43,9 +49,7 @@ export function InviteUserButton() {
 
           <form action={action} className="mt-4 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Email address
-              </label>
+              <label className="mb-1 block text-sm font-medium text-foreground">Email address</label>
               <input
                 name="email"
                 type="email"
@@ -58,17 +62,31 @@ export function InviteUserButton() {
 
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">Role</label>
-              <select name="role" required defaultValue="" className={selectClass}>
-                <option value="" disabled>
-                  Select a role…
-                </option>
+              <select
+                name="role"
+                required
+                value={selectedRole}
+                onChange={e => setSelectedRole(e.target.value)}
+                className={selectClass}
+              >
+                <option value="" disabled>Select a role…</option>
                 {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
+                  <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>
             </div>
+
+            {selectedRole === 'DATA_COLLECTOR' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">Zone</label>
+                <select name="zoneId" className={selectClass} defaultValue="">
+                  <option value="">No zone assigned</option>
+                  {zones.map(z => (
+                    <option key={z.id} value={z.id}>{z.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {state && 'error' in state && (
               <p className="text-sm text-destructive">{state.error}</p>

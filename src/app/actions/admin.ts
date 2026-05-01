@@ -80,9 +80,10 @@ export async function inviteInternalUser(
 ): Promise<{ error: string } | { success: true } | null> {
   const email = (formData.get('email') as string)?.trim().toLowerCase()
   const role = formData.get('role') as string
+  const zoneId = (formData.get('zoneId') as string)?.trim() || null
 
   if (!email) return { error: 'Email is required.' }
-  if (!['SALES', 'MARKETING', 'DATA_COLLECTOR'].includes(role)) {
+  if (!['ADMIN', 'SALES', 'MARKETING', 'DATA_COLLECTOR'].includes(role)) {
     return { error: 'Invalid role selection.' }
   }
 
@@ -99,11 +100,26 @@ export async function inviteInternalUser(
   if (error) return { error: error.message }
 
   await prisma.user.create({
-    data: { email, role: role as 'SALES' | 'MARKETING' | 'DATA_COLLECTOR' },
+    data: {
+      email,
+      role: role as 'ADMIN' | 'SALES' | 'MARKETING' | 'DATA_COLLECTOR',
+      invitedAt: new Date(),
+      zoneId: role === 'DATA_COLLECTOR' ? zoneId : null,
+    },
   })
 
   revalidatePath('/admin/users')
   return { success: true }
+}
+
+export async function resendInvite(email: string) {
+  const headersList = await headers()
+  const origin = headersList.get('origin') ?? 'http://localhost:3000'
+  const adminSupabase = createAdminClient()
+  await adminSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${origin}/accept-invite`,
+  })
+  revalidatePath('/admin/users')
 }
 
 export async function deleteUser(userId: string) {
@@ -137,10 +153,9 @@ export async function deleteContractor(companyId: string) {
 
   await prisma.$transaction([
     prisma.job.updateMany({
-      where: { contractor: { companyId } },
-      data: { contractorId: null },
+      where: { companyId },
+      data: { companyId: null },
     }),
-    prisma.contractor.deleteMany({ where: { companyId } }),
     prisma.user.deleteMany({ where: { contractorCompanyId: companyId } }),
     prisma.contractorCompany.delete({ where: { id: companyId } }),
   ])

@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   injectLead, parkLead, markLeadUrgent, backLead,
-  delayLead, unParkLead, reEvaluateLead, moveLeadPhase,
+  unParkLead, reEvaluateLead, moveLeadPhase,
 } from '@/app/actions/leads-admin'
 
 type Variant = 'evaluation-new' | 'evaluation-backed' | 'evaluation-urgent' | 'parking' | 'parking-inject' | 'parking-board'
@@ -35,15 +35,23 @@ export function LeadActionButtons({
   detailHref?: string
 }) {
   const [pending, startTransition] = useTransition()
+  const [injected, setInjected] = useState(false)
   const router = useRouter()
 
   function act(fn: () => Promise<void>) {
     startTransition(async () => { await fn(); router.refresh() })
   }
 
+  function handleInject(phase?: string) {
+    startTransition(async () => {
+      await injectLead(leadId, phase)
+      setInjected(true)
+      setTimeout(() => router.refresh(), 1500)
+    })
+  }
+
   const nextPhase = getNextPhase(leadPhase)
   const nextPhaseLabel = PHASE_LABELS[nextPhase] ?? nextPhase
-  const injectLabel = `Inject to ${nextPhaseLabel}`
 
   const btn = (label: string, color: string, fn: () => Promise<void>) => (
     <button
@@ -52,6 +60,16 @@ export function LeadActionButtons({
       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all disabled:opacity-40 active:scale-95 whitespace-nowrap ${color}`}
     >
       {label}
+    </button>
+  )
+
+  const injectBtn = (color: string, phase?: string) => (
+    <button
+      disabled={pending}
+      onClick={() => handleInject(phase)}
+      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all disabled:opacity-40 active:scale-95 whitespace-nowrap ${color}`}
+    >
+      {pending ? '…' : `Inject to ${nextPhaseLabel}`}
     </button>
   )
 
@@ -64,9 +82,15 @@ export function LeadActionButtons({
     </Link>
   ) : null
 
+  if (injected) return (
+    <p className="text-[11px] font-semibold text-green-600">
+      ✓ Lead injected to Marketing Inbox
+    </p>
+  )
+
   if (variant === 'evaluation-new') return (
     <div className="flex gap-1.5 flex-wrap">
-      {btn(injectLabel, 'bg-blue-600 text-white hover:bg-blue-700', () => injectLead(leadId, nextPhase))}
+      {injectBtn('bg-blue-600 text-white hover:bg-blue-700', nextPhase)}
       {btn('Back Lead', 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200', () => backLead(leadId))}
       {btn('Send to Parking', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () => parkLead(leadId))}
       {btn('Mark Urgent', 'bg-red-100 text-red-700 hover:bg-red-200', () => markLeadUrgent(leadId))}
@@ -84,7 +108,7 @@ export function LeadActionButtons({
 
   if (variant === 'evaluation-urgent') return (
     <div className="flex gap-1.5 flex-wrap">
-      {btn(injectLabel, 'bg-green-600 text-white hover:bg-green-700', () => injectLead(leadId, nextPhase))}
+      {injectBtn('bg-green-600 text-white hover:bg-green-700', nextPhase)}
       {btn('Send to Parking', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () => parkLead(leadId))}
       {btn('De-escalate', 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200', () => backLead(leadId))}
       {detailBtn}
@@ -93,7 +117,7 @@ export function LeadActionButtons({
 
   if (variant === 'parking') return (
     <div className="flex gap-1.5 flex-wrap">
-      {btn(injectLabel, 'bg-green-600 text-white hover:bg-green-700', () => injectLead(leadId, nextPhase))}
+      {injectBtn('bg-green-600 text-white hover:bg-green-700', nextPhase)}
       {btn('Restore', 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200', () => unParkLead(leadId))}
       {detailBtn}
     </div>
@@ -109,7 +133,6 @@ export function LeadActionButtons({
   if (variant === 'parking-board') return (
     <div className="flex gap-1 flex-wrap">
       {btn('Inject Now', 'bg-blue-600 text-white hover:bg-blue-700', () => injectLead(leadId, leadPhase ?? undefined))}
-      {btn('Delay', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () => delayLead(leadId))}
       {btn('Move Phase', 'bg-slate-100 text-slate-600 hover:bg-slate-200', () => moveLeadPhase(leadId, nextPhase))}
     </div>
   )

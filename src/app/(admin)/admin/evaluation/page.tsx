@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { LeadActionButtons } from '@/components/admin/lead-action-buttons'
+import { NeedsFixButton } from '@/components/admin/needs-fix-button'
 import { Bell, Phone } from 'lucide-react'
 
-const NEW_STATUSES = ['NEW_LEAD', 'SUBMITTED', 'UNDER_REVIEW', 'QUALIFIED', 'NEEDS_FIX', 'RESUBMITTED'] as never[]
+const NEW_STATUSES = ['NEW_LEAD', 'SUBMITTED', 'UNDER_REVIEW', 'NEEDS_FIX', 'RESUBMITTED'] as never[]
 const QUEUE_STATUSES = [...NEW_STATUSES, 'BACKED' as never, 'URGENT' as never, 'SCHEDULED' as never]
 
 const PHASES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'MLS']
@@ -30,12 +31,12 @@ const PHASE_FULL_NAMES: Record<string, string> = {
 
 // Per-phase color tokens for filter tabs
 const PHASE_TAB_COLORS: Record<string, { inactive: string; active: string }> = {
-  P0:  { inactive: 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-200',   active: 'bg-amber-500 text-white border-amber-500' },
+  P0:  { inactive: 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-200',   active: 'bg-blue-500 text-white border-blue-500' },
   P1:  { inactive: 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-200',           active: 'bg-sky-500 text-white border-sky-500' },
-  P2:  { inactive: 'bg-purple-50 text-purple-600 border-purple-300 hover:bg-purple-200',       active: 'bg-gray-500 text-white border-gray-500' },
+  P2:  { inactive: 'bg-purple-50 text-purple-600 border-purple-300 hover:bg-purple-200',       active: 'bg-puple-500 text-white border-puple-500' },
   P3:  { inactive: 'bg-red-50 text-red-800 border-red-300 hover:bg-red-200',           active: 'bg-red-500 text-white border-red-500' },
-  P4:  { inactive: 'bg-orange-50 text-orange-800 border-orange-300 hover:bg-orange-200', active: 'bg-purple-600 text-white border-purple-600' },
-  P5:  { inactive: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-200',       active: 'bg-blue-600 text-white border-blue-600' },
+  P4:  { inactive: 'bg-orange-50 text-orange-800 border-orange-300 hover:bg-orange-200', active: 'bg-orange-600 text-white border-orange-600' },
+  P5:  { inactive: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-200',       active: 'bg-amber-600 text-white border-amber-600' },
   MLS: { inactive: 'bg-green-50 text-green-800 border-green-300 hover:bg-green-200',   active: 'bg-green-600 text-white border-green-600' },
 }
 
@@ -331,8 +332,35 @@ export default async function EvaluationPage({
                       const collectorName = u
                         ? [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
                         : null
+                      const isNeedsFix = lead.status === 'NEEDS_FIX'
+                      const isResubmitted = lead.status === 'RESUBMITTED'
                       return (
-                        <div key={lead.id} className="bg-white border border-green-200 rounded-xl p-4 shadow-sm">
+                        <div
+                          key={lead.id}
+                          className={`rounded-xl p-4 shadow-sm border ${
+                            isNeedsFix
+                              ? 'bg-orange-50 border-orange-300'
+                              : isResubmitted
+                              ? 'bg-blue-50 border-blue-300'
+                              : 'bg-white border-green-200'
+                          }`}
+                        >
+                          {/* Status badge row */}
+                          {(isNeedsFix || isResubmitted) && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                              {isNeedsFix && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-white uppercase tracking-wide">
+                                  ⚠ Needs Fix
+                                </span>
+                              )}
+                              {isResubmitted && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500 text-white uppercase tracking-wide">
+                                  ✓ Resubmitted
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           {lead.phase && (
                             <p className="text-[10px] font-black text-green-600 uppercase tracking-wider mb-1">
                               {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
@@ -342,6 +370,30 @@ export default async function EvaluationPage({
                           {lead.businessName && (
                             <p className="text-xs text-gray-500 mt-0.5 mb-2">{lead.businessName}</p>
                           )}
+
+                          {/* Review comment — shown for both NEEDS_FIX and RESUBMITTED */}
+                          {lead.reviewComment && (
+                            <div className={`flex items-start gap-1.5 mb-2 rounded-lg px-2.5 py-2 ${
+                              isNeedsFix
+                                ? 'bg-orange-100 border border-orange-200'
+                                : 'bg-blue-100 border border-blue-200'
+                            }`}>
+                              <span className={`text-xs shrink-0 ${isNeedsFix ? 'text-orange-500' : 'text-blue-500'}`}>
+                                {isNeedsFix ? '⚠' : '↩'}
+                              </span>
+                              <div>
+                                <p className={`text-[10px] font-black uppercase tracking-wide mb-0.5 ${
+                                  isNeedsFix ? 'text-orange-600' : 'text-blue-600'
+                                }`}>
+                                  {isNeedsFix ? 'Issues to fix:' : 'Previously flagged:'}
+                                </p>
+                                <p className={`text-xs leading-snug ${isNeedsFix ? 'text-orange-800' : 'text-blue-800'}`}>
+                                  {lead.reviewComment}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
                           {collectorName && (
                             <p className="text-[11px] text-gray-400 mb-1.5">Collected by: {collectorName}</p>
                           )}
@@ -353,12 +405,31 @@ export default async function EvaluationPage({
                               </span>
                             </div>
                           )}
-                          <LeadActionButtons
-                            leadId={lead.id}
-                            variant="evaluation-new"
-                            leadPhase={lead.phase}
-                            detailHref={`/admin/leads/${lead.id}`}
-                          />
+
+                          {/* Actions: NEEDS_FIX only shows Details + update comment; others get full buttons */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {isNeedsFix ? (
+                              <>
+                                <Link
+                                  href={`/admin/leads/${lead.id}`}
+                                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                                >
+                                  Details
+                                </Link>
+                                <NeedsFixButton leadId={lead.id} />
+                              </>
+                            ) : (
+                              <>
+                                <LeadActionButtons
+                                  leadId={lead.id}
+                                  variant="evaluation-new"
+                                  leadPhase={lead.phase}
+                                  detailHref={`/admin/leads/${lead.id}`}
+                                />
+                                <NeedsFixButton leadId={lead.id} />
+                              </>
+                            )}
+                          </div>
                         </div>
                       )
                     })}

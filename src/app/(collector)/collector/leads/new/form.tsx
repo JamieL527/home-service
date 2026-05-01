@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, useRef, useEffect, useActionState } from 'react'
+import { useState, useRef, useEffect, useActionState, useMemo } from 'react'
 import { APIProvider, Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps'
+import { createClient } from '@/lib/supabase/client'
 import { createLead } from '@/app/actions/leads'
+import { PhotoGrid } from '@/components/ui/photo-grid'
 import {
   MapPin, Camera, Building, Hammer, MessageCircle,
   Plus, Globe, X, Save, RefreshCw, Layers, Star,
-  Crosshair, Loader2, ChevronRight, CheckCircle, Mic,
-  Navigation, Database, Mail
+  Crosshair, Loader2, ChevronLeft, ChevronRight, CheckCircle, Mic,
+  Navigation, Database, Mail, ScanText, Phone, AtSign,
+  Building2, Link
 } from 'lucide-react'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
@@ -92,7 +95,7 @@ function MapCameraUpdater({ coords, pinDropped }: { coords: { lat: number; lng: 
   return null
 }
 
-export function NewLeadForm() {
+export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zoneName?: string | null }) {
   // View state: 'map' | 'form'
   const [view, setView] = useState<'map' | 'form'>('map')
   
@@ -111,30 +114,27 @@ export function NewLeadForm() {
   const [photoCounts, setPhotoCounts] = useState<Record<PhotoCat, number>>({
     site: 0, demand: 0, supply: 0, other: 0,
   })
+  const [photoUrls, setPhotoUrls] = useState<Record<PhotoCat, string[]>>({
+    site: [], demand: [], supply: [], other: [],
+  })
+  const [photoUploading, setPhotoUploading] = useState<Record<PhotoCat, boolean>>({
+    site: false, demand: false, supply: false, other: false,
+  })
+  // stable folder name for this form session
+  const uploadFolder = useMemo(() => `draft-${Date.now()}`, [])
   const [notes, setNotes] = useState('')
   const [phase, setPhase] = useState('P0')
   
   // Supply side state
-  const [supplyList, setSupplyList] = useState<{
-    trade: string
-    company: string
-    contact: string
-    phone: string
-    email: string
-    website: string
-    officeLocation: string
-    interaction: string
-  }[]>([])
-  const [draftSupply, setDraftSupply] = useState({
-    trade: '',
-    company: '',
-    contact: '',
-    phone: '',
-    email: '',
-    website: '',
-    officeLocation: '',
-    interaction: 'Visual (Truck/Sign)'
+  type SupplyEntry = {
+    trade: string; company: string; contact: string; phone: string
+    email: string; website: string; officeLocation: string; interaction: string
+  }
+  const emptySupply = (): SupplyEntry => ({
+    trade: '', company: '', contact: '', phone: '',
+    email: '', website: '', officeLocation: '', interaction: 'Visual (Truck/Sign)'
   })
+  const [supplyList, setSupplyList] = useState<SupplyEntry[]>([emptySupply()])
   
   // Speech recognition state
   const [isRecording, setIsRecording] = useState(false)
@@ -146,6 +146,34 @@ export function NewLeadForm() {
     supply: useRef<HTMLInputElement>(null),
     other: useRef<HTMLInputElement>(null),
   }
+  const ocrRefs = {
+    site: useRef<HTMLInputElement>(null),
+    demand: useRef<HTMLInputElement>(null),
+    supply: useRef<HTMLInputElement>(null),
+    other: useRef<HTMLInputElement>(null),
+  }
+
+  // OCR state
+  type OcrResult = {
+    text: string
+    phones: string[]
+    emails: string[]
+    websites: string[]
+    companies: string[]
+    addresses: string[]
+    names: string[]
+  }
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  const [ocrError, setOcrError] = useState('')
+  const [ocrSource, setOcrSource] = useState<PhotoCat>('site')
+  const [uploadError, setUploadError] = useState('')
+  const [lightbox, setLightbox] = useState<{ urls: string[]; label: string; idx: number } | null>(null)
+
+  // Demand side controlled fields (for OCR fill)
+  const [businessName, setBusinessName] = useState('')
+  const [website, setWebsite] = useState('')
+  const [officeLocation, setOfficeLocation] = useState('')
 
   // Initialize speech recognition
   useEffect(() => {
@@ -158,7 +186,7 @@ export function NewLeadForm() {
       recognitionRef.current = new SpeechRecognitionAPI()
       recognitionRef.current.continuous = true
       recognitionRef.current.interimResults = false
-      recognitionRef.current.lang = 'en-US' // English
+      recognitionRef.current.lang = navigator.language
       recognitionRef.current.onresult = (e) => {
         const event = e as unknown as ISpeechRecognitionEvent
         const transcript = event.results[event.results.length - 1][0].transcript
@@ -253,9 +281,161 @@ export function NewLeadForm() {
     }
   }
 
-  function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>, cat: PhotoCat) {
-    const n = e.target.files?.length ?? 0
-    if (n > 0) setPhotoCounts((p) => ({ ...p, [cat]: p[cat] + n }))
+  async function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>, cat: PhotoCat) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length === 0) return
+
+    setUploadError('')
+
+    // Show local previews immediately so user sees photos right away
+    const previews = files.map(f => URL.createObjectURL(f))
+    setPhotoUrls(p => ({ ...p, [cat]: [...p[cat], ...previews] }))
+    setPhotoCounts(p => ({ ...p, [cat]: p[cat] + files.length }))
+
+    // Upload to Supabase in background, replace blob URLs with real URLs
+    setPhotoUploading(p => ({ ...p, [cat]: true }))
+    const supabase = createClient()
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const preview = previews[i]
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${uploadFolder}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage
+        .from('lead-photos')
+        .upload(path, file, { upsert: false })
+      if (error) {
+        console.error('Upload error:', error.message)
+        setUploadError(`Upload failed: ${error.message}`)
+      } else {
+        const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
+        // Replace blob URL with the real Supabase URL
+        setPhotoUrls(p => ({
+          ...p,
+          [cat]: p[cat].map(u => u === preview ? data.publicUrl : u),
+        }))
+      }
+    }
+
+    setPhotoUploading(p => ({ ...p, [cat]: false }))
+  }
+
+  async function runOcr(source: PhotoCat, base64: string) {
+    setOcrSource(source)
+    setOcrLoading(true)
+    setOcrError('')
+    setOcrResult(null)
+    try {
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64 }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setOcrError('OCR failed, please enter manually')
+        return
+      }
+      const text: string = data.text ?? ''
+      if (!text.trim()) {
+        setOcrError('No text detected')
+        return
+      }
+      setOcrResult(parseOcrText(text))
+    } catch {
+      setOcrError('OCR failed, please enter manually')
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  async function scanExistingPhoto(url: string, source: PhotoCat) {
+    try {
+      const resp = await fetch(url)
+      const blob = await resp.blob()
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      await runOcr(source, base64)
+    } catch {
+      setOcrError('Could not read photo, please try again')
+      setOcrLoading(false)
+    }
+  }
+
+  async function onOcrFileSelected(e: React.ChangeEvent<HTMLInputElement>, source: PhotoCat) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      await runOcr(source, base64)
+    } catch {
+      setOcrError('OCR failed, please enter manually')
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  function parseOcrText(text: string): OcrResult {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+
+    const phoneRe = /(\+?1?[\s.\-]?\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})/g
+    const emailRe = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g
+    const websiteRe = /(?:https?:\/\/)?(?:www\.)[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\/\S*)?/gi
+    // Street address: starts with a number followed by a street name
+    const addressRe = /^\d+[\w\s,.-]*(?:St|Ave|Blvd|Rd|Dr|Way|Ln|Ct|Pl|Cres|Crescent|Circle|Trail|Terrace|Gate|Grove|Park|Square|Street|Avenue|Boulevard|Road|Drive|Highway|Hwy|Unit|Suite|Floor)[,.\s\w#-]*/i
+
+    const phones = [...new Set(text.match(phoneRe) ?? [])].map(s => s.trim())
+    const emails = [...new Set(text.match(emailRe) ?? [])]
+    const websites = [...new Set(text.match(websiteRe) ?? [])]
+
+    // Business card company heuristic:
+    // A "company" line is one that contains a trade keyword OR has typical company suffixes
+    // OR is ALL CAPS or Title Case and is NOT a person name / address / phone / email
+    const tradeKeywords = /construction|contracting|contractor|builders|building|roofing|plumbing|electrical|electric|mechanical|hvac|renovation|renovations|landscaping|framing|concrete|masonry|painting|flooring|interiors|exterior|general|enterprise|industries|group|solutions|services|management|realty|property|properties|homes|home|design|studio|corp|inc|ltd|llc|co\.|company/i
+    const companySuffixRe = /\b(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.|Group|Solutions|Services|Construction|Contracting|Builders|Renovations?|Industries|Enterprises?|Properties|Realty|Management)\b/i
+
+    const addressLines = lines.filter(l => addressRe.test(l))
+    const emailSet = new Set(emails)
+    const phoneSet = new Set(phones.map(p => p.replace(/\D/g, '')))
+
+    const isPhoneLine = (l: string) => phoneRe.test(l)
+    const isEmailLine = (l: string) => emailSet.has(l) || emailRe.test(l)
+    const isWebsiteLine = (l: string) => websiteRe.test(l)
+    const isAddressLine = (l: string) => addressRe.test(l)
+    const isNumericHeavy = (l: string) => (l.replace(/\D/g, '').length / l.length) > 0.4
+
+    const companyLines = lines.filter(l =>
+      !isPhoneLine(l) && !isEmailLine(l) && !isWebsiteLine(l) && !isAddressLine(l) && !isNumericHeavy(l) &&
+      (tradeKeywords.test(l) || companySuffixRe.test(l) || /^[A-Z\s&.'-]{4,}$/.test(l))
+    )
+
+    // Person name: 2–3 words, each Title Case, no numbers, not a company line
+    const nameRe = /^[A-Z][a-z]+(?:\s[A-Z][a-z]+){1,2}$/
+    const companySet = new Set(companyLines)
+    const nameLines = lines.filter(l =>
+      nameRe.test(l) && !companySet.has(l) && !isAddressLine(l) && l.split(' ').length <= 3
+    )
+
+    return {
+      text,
+      phones,
+      emails,
+      websites,
+      companies: [...new Set(companyLines)].slice(0, 5),
+      addresses: [...new Set(addressLines)].slice(0, 3),
+      names: [...new Set(nameLines)].slice(0, 3),
+    }
   }
 
   function addContact() {
@@ -271,23 +451,20 @@ export function NewLeadForm() {
     setContacts((p) => p.map((c, idx) => (idx === i ? { ...c, [f]: v } : c)))
   }
 
-  function handleAddSupply() {
-    if (!draftSupply.trade || !draftSupply.company) return
-    setSupplyList(prev => [...prev, draftSupply])
-    setDraftSupply({
-      trade: '',
-      company: '',
-      contact: '',
-      phone: '',
-      email: '',
-      website: '',
-      officeLocation: '',
-      interaction: 'Visual (Truck/Sign)'
-    })
+  function addSupply() {
+    setSupplyList(prev => [...prev, emptySupply()])
   }
 
   function removeSupply(index: number) {
-    setSupplyList(prev => prev.filter((_, i) => i !== index))
+    setSupplyList(prev => prev.length > 1 ? prev.filter((_, i) => i !== index) : [emptySupply()])
+  }
+
+  function updateSupply(index: number, field: keyof SupplyEntry, value: string) {
+    setSupplyList(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
+  }
+
+  function fillLastSupply(field: keyof SupplyEntry, value: string) {
+    setSupplyList(prev => prev.map((s, i) => i === prev.length - 1 ? { ...s, [field]: value } : s))
   }
 
   // Route to start point
@@ -464,8 +641,24 @@ export function NewLeadForm() {
         <input type="hidden" name="lng" value={location.lng} />
         <input type="hidden" name="phase" value={phase} />
         <input type="hidden" name="initialComment" value={notes} />
+        {zoneId && <input type="hidden" name="zoneId" value={zoneId} />}
+        {zoneName && <input type="hidden" name="zoneName" value={zoneName} />}
+        {ocrResult && <input type="hidden" name="ocrData" value={JSON.stringify({ text: ocrResult.text })} />}
+        <input type="hidden" name="photos" value={JSON.stringify({
+          site:   photoUrls.site.filter(u => !u.startsWith('blob:')),
+          demand: photoUrls.demand.filter(u => !u.startsWith('blob:')),
+          supply: photoUrls.supply.filter(u => !u.startsWith('blob:')),
+          other:  photoUrls.other.filter(u => !u.startsWith('blob:')),
+        })} />
 
         <div className="p-4 space-y-4 pb-28">
+          {/* Zone banner */}
+          {zoneName && (
+            <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-700 font-medium">
+              <MapPin size={14} className="shrink-0" />
+              Your Zone: {zoneName}
+            </div>
+          )}
           {/* ── 1. City Data ── */}
           <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm">
             <div className="flex justify-between items-center mb-3">
@@ -490,7 +683,8 @@ export function NewLeadForm() {
             <SectionLabel Icon={Camera} text="2. Visual Evidence (Snap to Scan)" colorClass="text-gray-500" />
             <div className="grid grid-cols-4 gap-2">
               {PHOTO_ITEMS.map(({ key, label, Icon }) => (
-                <div key={key}>
+                <div key={key} className="space-y-1">
+                  {/* Hidden file input */}
                   <input
                     type="file"
                     multiple
@@ -500,22 +694,278 @@ export function NewLeadForm() {
                     className="hidden"
                     onChange={(e) => onPhotoChange(e, key)}
                   />
+
+                  {/* Photo cell: thumbnail when photos exist, upload button when empty */}
+                  {photoUploading[key] ? (
+                    <div className="w-full h-16 border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-xl flex flex-col items-center justify-center text-[10px] font-bold text-yellow-700">
+                      <Loader2 size={14} className="animate-spin mb-0.5" />
+                      Uploading…
+                    </div>
+                  ) : photoUrls[key].length > 0 ? (
+                    <div className="relative w-full h-16 rounded-xl overflow-hidden border-2 border-green-300">
+                      {/* Thumbnail — click to open lightbox */}
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ urls: photoUrls[key], label, idx: 0 })}
+                        className="w-full h-full"
+                      >
+                        <img src={photoUrls[key][0]} alt={label} className="w-full h-full object-cover" />
+                      </button>
+                      {/* Count badge */}
+                      {photoUrls[key].length > 1 && (
+                        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                          {photoUrls[key].length}
+                        </span>
+                      )}
+                      {/* Add more button */}
+                      <button
+                        type="button"
+                        onClick={() => photoRefs[key].current?.click()}
+                        className="absolute top-1 right-1 bg-white/90 hover:bg-white rounded-full p-0.5 shadow-sm transition-colors"
+                      >
+                        <Plus size={10} className="text-gray-700" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => photoRefs[key].current?.click()}
+                      className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-[10px] font-bold bg-white border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-all active:scale-95 select-none"
+                    >
+                      <Icon size={14} className="mb-0.5" />
+                      {label}
+                    </button>
+                  )}
+
+                  {/* OCR scan */}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    ref={ocrRefs[key]}
+                    className="hidden"
+                    onChange={(e) => onOcrFileSelected(e, key)}
+                  />
                   <button
                     type="button"
-                    onClick={() => photoRefs[key].current?.click()}
-                    className={`w-full h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-[10px] font-bold transition-all active:scale-95 select-none ${
-                      photoCounts[key] > 0
-                        ? 'bg-green-50 border-green-300 text-green-700'
-                        : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500'
-                    }`}
+                    onClick={() => {
+                      if (photoUrls[key].length > 0) {
+                        // Scan the most recently uploaded photo for this category
+                        scanExistingPhoto(photoUrls[key][photoUrls[key].length - 1], key)
+                      } else {
+                        // No photo yet — open file picker
+                        ocrRefs[key].current?.click()
+                      }
+                    }}
+                    disabled={ocrLoading}
+                    className="w-full h-10 border border-indigo-200 rounded-lg flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40"
                   >
-                    <Icon size={16} className="mb-1" />
-                    {photoCounts[key] > 0 ? `${photoCounts[key]} added` : label}
+                    {ocrLoading && ocrSource === key
+                      ? <><Loader2 size={11} className="animate-spin" /> Scanning…</>
+                      : <><ScanText size={11} /> Scan Text</>
+                    }
                   </button>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-gray-400 mt-2">Photos are stored locally and not yet uploaded.</p>
+
+            {uploadError && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+                <span>{uploadError}</span>
+                <button type="button" onClick={() => setUploadError('')}><X size={13} /></button>
+              </div>
+            )}
+
+            {/* OCR error */}
+            {ocrError && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+                <span>{ocrError}</span>
+                <button type="button" onClick={() => setOcrError('')}><X size={13} /></button>
+              </div>
+            )}
+
+            {/* OCR result panel */}
+            {ocrResult && (
+              <div className="mt-3 rounded-xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border-b border-indigo-100">
+                  <span className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                    <ScanText size={13} />
+                    OCR Result
+                    <span className="ml-1 text-[10px] font-normal text-indigo-400">
+                      → filling {ocrSource === 'supply' ? 'Supply' : 'Demand'} side
+                    </span>
+                  </span>
+                  <button type="button" onClick={() => setOcrResult(null)} className="text-indigo-400 hover:text-indigo-600">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Raw text */}
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Detected Text</p>
+                  <p className="text-xs text-gray-600 whitespace-pre-wrap line-clamp-4">{ocrResult.text}</p>
+                </div>
+
+                {/* Extracted fields */}
+                <div className="px-3 py-2 space-y-2">
+                  {ocrResult.phones.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Phone size={10} /> Phone Numbers
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.phones.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700 font-mono">{p}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('phone', p)
+                                : updateContact(0, 'phone', p)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.companies.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Building2 size={10} /> Company Names
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.companies.map((c, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700 truncate">{c}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('company', c)
+                                : setBusinessName(c)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.websites.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Link size={10} /> Websites
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.websites.map((w, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700 truncate">{w}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('website', w)
+                                : setWebsite(w)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.emails.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <AtSign size={10} /> Emails
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.emails.map((e, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700 truncate">{e}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('email', e)
+                                : updateContact(0, 'email', e)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <Star size={10} /> Person Names
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.names.map((n, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700">{n}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('contact', n)
+                                : updateContact(0, 'name', n)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.addresses.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        <MapPin size={10} /> Addresses
+                      </p>
+                      <div className="space-y-1">
+                        {ocrResult.addresses.map((a, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-700 truncate">{a}</span>
+                            <button
+                              type="button"
+                              onClick={() => ocrSource === 'supply'
+                                ? fillLastSupply('officeLocation', a)
+                                : setOfficeLocation(a)
+                              }
+                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrResult.phones.length === 0 && ocrResult.companies.length === 0 &&
+                   ocrResult.websites.length === 0 && ocrResult.emails.length === 0 &&
+                   ocrResult.addresses.length === 0 && ocrResult.names.length === 0 && (
+                    <p className="text-xs text-gray-400 py-1">No structured data found — use the raw text above.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Phase Details ── */}
@@ -524,7 +974,7 @@ export function NewLeadForm() {
             <select
               value={phase}
               onChange={(e) => setPhase(e.target.value)}
-              className="w-full p-3 bg-white border border-indigo-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full p-3 bg-white border border-indigo-200 rounded-lg text-base font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
               {PHASES.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -542,36 +992,42 @@ export function NewLeadForm() {
               <input
                 name="businessName"
                 type="text"
+                value={businessName}
+                onChange={e => setBusinessName(e.target.value)}
                 placeholder="Company / Builder Name"
-                className="w-full p-3 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full p-3 bg-white border border-blue-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-400">
-                  <Globe size={13} className="text-gray-400 shrink-0" />
-                  <input
-                    name="website"
-                    type="url"
-                    placeholder="Website"
-                    className="w-full p-2 bg-transparent text-sm outline-none"
-                  />
-                </div>
-                <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-400">
-                  <MapPin size={13} className="text-gray-400 shrink-0" />
-                  <input
-                    name="officeLocation"
-                    type="text"
-                    placeholder="HQ Address"
-                    className="w-full p-2 bg-transparent text-sm outline-none"
-                  />
-                </div>
+              <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-400">
+                <Globe size={15} className="text-gray-400 shrink-0" />
+                <input
+                  name="website"
+                  type="url"
+                  value={website}
+                  onChange={e => setWebsite(e.target.value)}
+                  placeholder="Website"
+                  autoComplete="off"
+                  className="w-full p-3 bg-transparent text-base outline-none"
+                />
               </div>
               <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-400">
-                <Star size={13} className="text-gray-400 shrink-0" />
+                <MapPin size={15} className="text-gray-400 shrink-0" />
+                <input
+                  name="officeLocation"
+                  type="text"
+                  value={officeLocation}
+                  onChange={e => setOfficeLocation(e.target.value)}
+                  placeholder="HQ Address"
+                  className="w-full p-3 bg-transparent text-base outline-none"
+                />
+              </div>
+              <div className="flex items-center bg-white border border-blue-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-400">
+                <Star size={15} className="text-gray-400 shrink-0" />
                 <input
                   name="rating"
                   type="text"
                   placeholder="Rating (e.g. 4.5)"
-                  className="w-full p-2 bg-transparent text-sm outline-none"
+                  inputMode="decimal"
+                  className="w-full p-3 bg-transparent text-base outline-none"
                 />
               </div>
             </div>
@@ -587,41 +1043,39 @@ export function NewLeadForm() {
                     <button
                       type="button"
                       onClick={() => removeContact(i)}
-                      className="absolute top-2.5 right-2.5 text-gray-400 hover:text-red-500 transition-colors"
+                      className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 transition-colors"
                     >
-                      <X size={15} />
+                      <X size={16} />
                     </button>
                   )}
-                  <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="space-y-2">
                     <input
                       type="text"
                       value={c.name}
                       onChange={(e) => updateContact(i, 'name', e.target.value)}
                       placeholder="Name"
-                      className="p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full p-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                     <input
                       type="text"
                       value={c.role}
                       onChange={(e) => updateContact(i, 'role', e.target.value)}
                       placeholder="Role (e.g. Site Super)"
-                      className="p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full p-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
                     <input
                       type="tel"
                       value={c.phone}
                       onChange={(e) => updateContact(i, 'phone', e.target.value)}
                       placeholder="Phone"
-                      className="p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full p-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                     <input
                       type="email"
                       value={c.email}
                       onChange={(e) => updateContact(i, 'email', e.target.value)}
                       placeholder="Email"
-                      className="p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full p-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                   </div>
                 </div>
@@ -629,9 +1083,9 @@ export function NewLeadForm() {
               <button
                 type="button"
                 onClick={addContact}
-                className="text-xs font-bold text-blue-600 flex items-center hover:underline"
+                className="w-full py-3 rounded-xl border-2 border-dashed border-blue-200 text-sm font-bold text-blue-600 flex items-center justify-center gap-1 hover:bg-blue-50 transition-colors"
               >
-                <Plus size={14} className="mr-1" />
+                <Plus size={16} />
                 Add Another Contact
               </button>
             </div>
@@ -641,114 +1095,98 @@ export function NewLeadForm() {
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm">
             <SectionLabel Icon={Hammer} text="4. Supply Side (Contractors on Site)" colorClass="text-orange-700" />
             <input type="hidden" name="supply" value={JSON.stringify(supplyList)} />
-            
-            <div className="bg-white p-3 rounded-lg border border-orange-200 space-y-2">
-              <select
-                className="w-full p-2 border border-gray-200 rounded text-sm bg-gray-50 text-gray-700 outline-none focus:ring-2 focus:ring-orange-400"
-                value={draftSupply.interaction}
-                onChange={(e) => setDraftSupply({ ...draftSupply, interaction: e.target.value })}
-              >
-                <option value="Visual (Truck/Sign)">Interaction: Visual Only (Saw Truck/Sign)</option>
-                <option value="In-Person (Conversation)">Interaction: In-Person Conversation</option>
-                <option value="Active Supplier">Interaction: Active Current Supplier</option>
-              </select>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  className="p-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
-                  placeholder="Trade (e.g. Plumber)"
-                  value={draftSupply.trade}
-                  onChange={(e) => setDraftSupply({ ...draftSupply, trade: e.target.value })}
-                />
-                <input
-                  className="p-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
-                  placeholder="Company Name"
-                  value={draftSupply.company}
-                  onChange={(e) => setDraftSupply({ ...draftSupply, company: e.target.value })}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded px-2 focus-within:ring-1 focus-within:ring-orange-400">
-                  <Globe size={14} className="text-gray-400 shrink-0" />
-                  <input
-                    className="w-full p-2 bg-transparent text-sm outline-none"
-                    placeholder="Website"
-                    value={draftSupply.website}
-                    onChange={(e) => setDraftSupply({ ...draftSupply, website: e.target.value })}
-                  />
-                </div>
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded px-2 focus-within:ring-1 focus-within:ring-orange-400">
-                  <MapPin size={14} className="text-gray-400 shrink-0" />
-                  <input
-                    className="w-full p-2 bg-transparent text-sm outline-none"
-                    placeholder="Office Location"
-                    value={draftSupply.officeLocation}
-                    onChange={(e) => setDraftSupply({ ...draftSupply, officeLocation: e.target.value })}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  className="p-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
-                  placeholder="Contact Person"
-                  value={draftSupply.contact}
-                  onChange={(e) => setDraftSupply({ ...draftSupply, contact: e.target.value })}
-                />
-                <input
-                  className="p-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
-                  placeholder="Phone"
-                  value={draftSupply.phone}
-                  onChange={(e) => setDraftSupply({ ...draftSupply, phone: e.target.value })}
-                />
-              </div>
-              
-              <div className="flex items-center bg-gray-50 border border-gray-200 rounded px-2 mb-2 focus-within:ring-1 focus-within:ring-orange-400">
-                <Mail size={14} className="text-gray-400 shrink-0" />
-                <input
-                  className="w-full p-2 bg-transparent text-sm outline-none"
-                  placeholder="Email Address"
-                  value={draftSupply.email}
-                  onChange={(e) => setDraftSupply({ ...draftSupply, email: e.target.value })}
-                />
-              </div>
-              
-              <button
-                type="button"
-                onClick={handleAddSupply}
-                className="w-full bg-orange-600 text-white font-bold py-2 rounded text-sm hover:bg-orange-700 transition-colors"
-              >
-                Add Contractor to Site
-              </button>
-            </div>
-            
-            {/* Added contractors list */}
-            {supplyList.length > 0 && (
-              <div className="space-y-2 mt-3">
-                {supplyList.map((c, i) => (
-                  <div key={i} className="flex justify-between p-3 bg-white rounded-lg border border-orange-200 text-sm shadow-sm relative pr-8">
-                    <div>
-                      <span className="text-orange-900 block font-bold">{c.trade}: {c.company}</span>
-                      <span className="text-orange-600 text-[10px] font-bold uppercase tracking-wider">{c.interaction}</span>
-                      {(c.website || c.officeLocation) && (
-                        <span className="text-gray-500 text-xs block mt-1">{c.website} {c.website && c.officeLocation && '•'} {c.officeLocation}</span>
-                      )}
-                      {(c.contact || c.phone || c.email) && (
-                        <span className="text-gray-500 text-xs block">{c.contact} {c.contact && c.phone && '•'} {c.phone} {(c.contact || c.phone) && c.email && '•'} {c.email}</span>
-                      )}
-                    </div>
+
+            <div className="space-y-3">
+              {supplyList.map((s, i) => (
+                <div key={i} className="bg-white p-3 rounded-lg border border-orange-200 space-y-2 relative">
+                  {supplyList.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeSupply(i)}
-                      className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
+                      className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 transition-colors"
                     >
                       <X size={16} />
                     </button>
+                  )}
+                  <select
+                    className="w-full p-3 border border-gray-200 rounded-lg text-base bg-gray-50 text-gray-700 outline-none focus:ring-2 focus:ring-orange-400"
+                    value={s.interaction}
+                    onChange={(e) => updateSupply(i, 'interaction', e.target.value)}
+                  >
+                    <option value="Visual (Truck/Sign)">Visual Only (Saw Truck/Sign)</option>
+                    <option value="In-Person (Conversation)">In-Person Conversation</option>
+                    <option value="Active Supplier">Active Current Supplier</option>
+                  </select>
+                  <input
+                    type="text"
+                    className="w-full p-3 border border-gray-200 rounded-lg text-base bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    placeholder="Trade (e.g. Plumber, Electrician)"
+                    value={s.trade}
+                    onChange={(e) => updateSupply(i, 'trade', e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className="w-full p-3 border border-gray-200 rounded-lg text-base bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    placeholder="Company Name"
+                    value={s.company}
+                    onChange={(e) => updateSupply(i, 'company', e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className="w-full p-3 border border-gray-200 rounded-lg text-base bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    placeholder="Contact Person"
+                    value={s.contact}
+                    onChange={(e) => updateSupply(i, 'contact', e.target.value)}
+                  />
+                  <input
+                    type="tel"
+                    className="w-full p-3 border border-gray-200 rounded-lg text-base bg-gray-50 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    placeholder="Phone"
+                    value={s.phone}
+                    onChange={(e) => updateSupply(i, 'phone', e.target.value)}
+                  />
+                  <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 focus-within:ring-1 focus-within:ring-orange-400">
+                    <Mail size={15} className="text-gray-400 shrink-0" />
+                    <input
+                      type="email"
+                      className="w-full p-3 bg-transparent text-base outline-none"
+                      placeholder="Email"
+                      value={s.email}
+                      onChange={(e) => updateSupply(i, 'email', e.target.value)}
+                    />
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 focus-within:ring-1 focus-within:ring-orange-400">
+                    <Globe size={15} className="text-gray-400 shrink-0" />
+                    <input
+                      type="url"
+                      className="w-full p-3 bg-transparent text-base outline-none"
+                      placeholder="Website"
+                      autoComplete="off"
+                      value={s.website}
+                      onChange={(e) => updateSupply(i, 'website', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 focus-within:ring-1 focus-within:ring-orange-400">
+                    <MapPin size={15} className="text-gray-400 shrink-0" />
+                    <input
+                      type="text"
+                      className="w-full p-3 bg-transparent text-base outline-none"
+                      placeholder="Office Location"
+                      value={s.officeLocation}
+                      onChange={(e) => updateSupply(i, 'officeLocation', e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addSupply}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-orange-200 text-sm font-bold text-orange-700 flex items-center justify-center gap-1 hover:bg-orange-50 transition-colors"
+              >
+                <Plus size={14} className="mr-1" />
+                Add Another Contractor
+              </button>
+            </div>
           </div>
 
           {/* ── 5. Field Notes with Voice Input ── */}
@@ -760,7 +1198,7 @@ export function NewLeadForm() {
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
                 placeholder="Enter notes or tap microphone for voice input..."
-                className="w-full p-3 pb-12 bg-white border border-teal-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                className="w-full p-3 pb-14 bg-white border border-teal-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
               />
               <button
                 type="button"
@@ -794,14 +1232,14 @@ export function NewLeadForm() {
             <button
               type="button"
               onClick={() => setView('map')}
-              className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm transition-colors"
+              className="px-5 py-3.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 text-base transition-colors"
             >
               Back
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex-1 bg-gray-900 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-black transition-colors text-sm shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
+              className="flex-1 bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-black transition-colors text-base shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
             >
               {isPending ? (
                 <>
@@ -818,6 +1256,57 @@ export function NewLeadForm() {
           </div>
         </div>
       </form>
+
+      {/* Photo lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+          >
+            <X size={20} />
+          </button>
+
+          {lightbox.urls.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(l => l && ({ ...l, idx: (l.idx - 1 + l.urls.length) % l.urls.length })) }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          <div
+            className="max-w-[90vw] max-h-[85vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.urls[lightbox.idx]}
+              alt={lightbox.label}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+            <p className="text-white/60 text-xs text-center mt-3">
+              <span className="font-semibold text-white/80 mr-1">{lightbox.label}</span>
+              {lightbox.urls.length > 1 && `· ${lightbox.idx + 1} / ${lightbox.urls.length}`}
+            </p>
+          </div>
+
+          {lightbox.urls.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(l => l && ({ ...l, idx: (l.idx + 1) % l.urls.length })) }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

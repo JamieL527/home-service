@@ -11,6 +11,17 @@ type ContactInput = {
   role?: string
 }
 
+type SupplierInput = {
+  trade?: string
+  company?: string
+  contact?: string
+  phone?: string
+  email?: string
+  website?: string
+  officeLocation?: string
+  interaction?: string
+}
+
 export async function createLead(
   _prevState: { error: string } | null,
   formData: FormData
@@ -31,6 +42,11 @@ export async function createLead(
   const address = (formData.get('address') as string)?.trim()
   if (!address) return { error: 'Address is required.' }
 
+  const latRaw = formData.get('lat') as string
+  const lngRaw = formData.get('lng') as string
+  const lat = latRaw ? parseFloat(latRaw) : null
+  const lng = lngRaw ? parseFloat(lngRaw) : null
+
   const phase = (formData.get('phase') as string)?.trim() || null
   const initialComment = (formData.get('initialComment') as string)?.trim() || null
   const businessName = (formData.get('businessName') as string)?.trim() || null
@@ -38,6 +54,32 @@ export async function createLead(
   const website = (formData.get('website') as string)?.trim() || null
   const rating = (formData.get('rating') as string)?.trim() || null
   const zoneName = (formData.get('zoneName') as string)?.trim() || null
+  const zoneId = (formData.get('zoneId') as string)?.trim() || null
+  let ocrData: object | null = null
+  try {
+    const raw = formData.get('ocrData') as string
+    if (raw) ocrData = JSON.parse(raw)
+  } catch { ocrData = null }
+
+  let suppliers: SupplierInput[] = []
+  try {
+    const raw = formData.get('supply') as string
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) suppliers = parsed
+    }
+  } catch { suppliers = [] }
+
+  let photosData: object | null = null
+  try {
+    const raw = formData.get('photos') as string
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const hasAny = parsed && typeof parsed === 'object' &&
+        Object.values(parsed).some((arr) => Array.isArray(arr) && (arr as string[]).length > 0)
+      if (hasAny) photosData = parsed
+    }
+  } catch { photosData = null }
 
   let contacts: ContactInput[] = []
   try {
@@ -60,13 +102,18 @@ export async function createLead(
   const lead = await prisma.lead.create({
     data: {
       address,
+      lat: lat && !isNaN(lat) ? lat : undefined,
+      lng: lng && !isNaN(lng) ? lng : undefined,
       phase,
       initialComment,
       businessName,
       officeLocation,
       website,
       rating,
+      zoneId,
       zoneName,
+      ocrData: ocrData ?? undefined,
+      photos: photosData ?? undefined,
       createdById: prismaUser.id,
       status: 'SUBMITTED' as never,
     },
@@ -83,6 +130,25 @@ export async function createLead(
         email: c.email?.trim() || null,
         phone: c.phone?.trim() || null,
         role: c.role?.trim() || null,
+      })),
+    })
+  }
+
+  const validSuppliers = suppliers.filter(
+    (s) => s.company?.trim() || s.trade?.trim() || s.contact?.trim()
+  )
+  if (validSuppliers.length > 0) {
+    await prisma.leadSupplier.createMany({
+      data: validSuppliers.map((s) => ({
+        leadId: lead.id,
+        trade: s.trade?.trim() || null,
+        company: s.company?.trim() || null,
+        contact: s.contact?.trim() || null,
+        phone: s.phone?.trim() || null,
+        email: s.email?.trim() || null,
+        website: s.website?.trim() || null,
+        officeLocation: s.officeLocation?.trim() || null,
+        interaction: s.interaction?.trim() || null,
       })),
     })
   }

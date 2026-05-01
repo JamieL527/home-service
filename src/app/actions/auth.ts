@@ -163,6 +163,7 @@ export async function saveBusinessProfile(
   const businessNumber = (formData.get('businessNumber') as string)?.trim()
   const address = (formData.get('address') as string)?.trim()
   const website = (formData.get('website') as string)?.trim() || null
+  const tradeType = (formData.get('tradeType') as string)?.trim() || null
   const contactName = (formData.get('contactName') as string)?.trim()
   const contactTitle = (formData.get('contactTitle') as string)?.trim()
   const contactEmail = (formData.get('contactEmail') as string)?.trim()
@@ -171,7 +172,7 @@ export async function saveBusinessProfile(
   const insuranceNumber = (formData.get('insuranceNumber') as string)?.trim()
   const termsAccepted = formData.get('termsAccepted') === 'on'
 
-  if (!name || !businessNumber || !address || !contactName || !contactTitle || !contactEmail || !contactPhone || !wsibNumber || !insuranceNumber) {
+  if (!name || !businessNumber || !address || !tradeType || !contactName || !contactTitle || !contactEmail || !contactPhone || !wsibNumber || !insuranceNumber) {
     return { error: 'Please fill in all required fields.' }
   }
   if (!termsAccepted) {
@@ -185,6 +186,7 @@ export async function saveBusinessProfile(
       businessNumber,
       address,
       website,
+      tradeType,
       contactName,
       contactTitle,
       contactEmail,
@@ -218,6 +220,7 @@ export async function getBusinessProfile() {
     businessNumber: c.businessNumber ?? '',
     address: c.address ?? '',
     website: c.website ?? '',
+    tradeType: c.tradeType ?? '',
     contactName: c.contactName ?? '',
     contactTitle: c.contactTitle ?? '',
     contactEmail: c.contactEmail ?? '',

@@ -4,7 +4,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 const ROLE_ROUTES: Record<string, string> = {
   ADMIN: '/admin',
   SALES: '/sales',
-  MARKETING: '/marketing',
+  MARKETING: '/marketing/inbox',
   DATA_COLLECTOR: '/collector',
   CONTRACTOR: '/contractor/overview',
 }
@@ -63,6 +63,24 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith('/contractor')) {
     const role = request.cookies.get('user-role')?.value
     if (role !== 'CONTRACTOR') {
+      const url = request.nextUrl.clone()
+      url.pathname = role && ROLE_ROUTES[role] ? ROLE_ROUTES[role] : '/login'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  if (pathname.startsWith('/sales')) {
+    const role = request.cookies.get('user-role')?.value
+    if (role !== 'SALES' && role !== 'ADMIN') {
+      const url = request.nextUrl.clone()
+      url.pathname = role && ROLE_ROUTES[role] ? ROLE_ROUTES[role] : '/login'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  if (pathname.startsWith('/marketing')) {
+    const role = request.cookies.get('user-role')?.value
+    if (role !== 'MARKETING' && role !== 'ADMIN') {
       const url = request.nextUrl.clone()
       url.pathname = role && ROLE_ROUTES[role] ? ROLE_ROUTES[role] : '/login'
       return NextResponse.redirect(url)

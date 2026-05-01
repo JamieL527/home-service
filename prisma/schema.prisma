@@ -1,6 +1,7 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -21,7 +22,6 @@ enum LeadStatus {
   DRAFT
   SUBMITTED
   UNDER_REVIEW
-  QUALIFIED
   NEEDS_FIX
   RESUBMITTED
   REJECTED
@@ -32,15 +32,24 @@ enum LeadStatus {
   PARKED
   SCHEDULED
   INJECTED
+  MARKETING_INBOX
+  TO_CONTACT
+  CONTACTING
+  NO_RESPONSE
+  CONTACT_ESTABLISHED
+  QUALIFIED
   JOB_ACTIVE
 }
 
 enum JobStatus {
   PENDING
+  READY
+  OFFER_SENT
   ASSIGNED
   IN_PROGRESS
   COMPLETED
   VERIFIED
+  CANCELLED
 }
 
 enum ContractorCompanyStatus {
@@ -59,6 +68,9 @@ model User {
   lastName            String?
   contractorCompanyId String?
   contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
+  zoneId              String?
+  zone                Zone?              @relation(fields: [zoneId], references: [id])
+  invitedAt           DateTime?
   createdAt           DateTime           @default(now())
 }
 
@@ -69,6 +81,7 @@ model ContractorCompany {
   businessNumber  String?
   address         String?
   website         String?
+  tradeType       String?
   wsibNumber      String?
   insuranceNumber String?
   contactName     String?
@@ -79,7 +92,8 @@ model ContractorCompany {
   termsAcceptedAt DateTime?
   adminNote       String?
   users           User[]
-  contractors     Contractor[]
+  jobs            Job[]
+  offers          JobOffer[]
   createdAt       DateTime                @default(now())
 }
 
@@ -105,13 +119,36 @@ model Lead {
   photos         Json?
   ocrData        Json?
 
+  zoneId            String?
   zoneName          String?
-  isUrgent          Boolean    @default(false)
+  isUrgent          Boolean   @default(false)
   scheduledInjectAt DateTime?
+  reviewComment     String?
+  submittedAt       DateTime?
+  marketingTag      String?
+  retryCount        Int       @default(0)
+  nextFollowUpDate  DateTime?
+  marketingNote     String?
+  sentimentTag      String?
 
   contacts       LeadContact[]
+  suppliers      LeadSupplier[]
   jobs           Job[]
   deals          Deal[]
+}
+
+model LeadSupplier {
+  id             String  @id @default(uuid())
+  leadId         String
+  lead           Lead    @relation(fields: [leadId], references: [id])
+  trade          String?
+  company        String?
+  contact        String?
+  phone          String?
+  email          String?
+  website        String?
+  officeLocation String?
+  interaction    String?
 }
 
 model LeadContact {
@@ -125,33 +162,82 @@ model LeadContact {
 }
 
 model Job {
-  id           String      @id @default(uuid())
-  leadId       String
-  lead         Lead        @relation(fields: [leadId], references: [id])
-  scope        String?
-  price        Float?
-  phase        String?
-  status       JobStatus   @default(PENDING)
-  contractorId String?
-  contractor   Contractor? @relation(fields: [contractorId], references: [id])
-  createdAt    DateTime    @default(now())
+  id             String      @id @default(uuid())
+  leadId         String
+  lead           Lead        @relation(fields: [leadId], references: [id])
+  phase          String?
+  status         JobStatus   @default(PENDING)
+  scope          String?
+  priceType      String?
+  priceFixed     Float?
+  priceMin       Float?
+  priceMax       Float?
+  timeline       String?
+  serviceType    String?
+  contractorType String?
+  companyId      String?
+  company        ContractorCompany? @relation(fields: [companyId], references: [id])
+  progressNote   String?
+  progressPhotos Json?
+  offers         JobOffer[]
+  createdAt      DateTime    @default(now())
 }
 
-model Contractor {
-  id        String            @id @default(uuid())
-  companyId String
-  company   ContractorCompany @relation(fields: [companyId], references: [id])
-  tradeType String
-  location  String?
-  jobs      Job[]
-  createdAt DateTime          @default(now())
+model JobOffer {
+  id          String            @id @default(uuid())
+  jobId       String
+  job         Job               @relation(fields: [jobId], references: [id])
+  companyId   String
+  company     ContractorCompany @relation(fields: [companyId], references: [id])
+  status      String            @default("pending")
+  sentAt      DateTime          @default(now())
+  respondedAt DateTime?
 }
+
 
 model Deal {
-  id        String   @id @default(uuid())
-  leadId    String
-  lead      Lead     @relation(fields: [leadId], references: [id])
-  value     Float?
-  status    String   @default("active")
-  createdAt DateTime @default(now())
+  id              String    @id @default(uuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  projectName     String?
+  clientName      String?
+  projectType     String?
+  phase           String?
+  estimatedValue  Float?
+  currentStage    String    @default("NEW_OPPORTUNITY")
+  ownerId         String?
+  status          String    @default("active")
+  lossReason      String?
+  notes           String?
+  siteVisitDate   DateTime?
+  deadline        DateTime?
+  negotiationDate DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  quotes          Quote[]
+}
+
+model Quote {
+  id          String    @id @default(uuid())
+  dealId      String
+  deal        Deal      @relation(fields: [dealId], references: [id])
+  version     Int       @default(1)
+  lineItems   Json?
+  subtotal    Float?
+  tax         Float?
+  total       Float?
+  status      String    @default("draft")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  submittedAt DateTime?
+}
+
+model Zone {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
 }

@@ -71,6 +71,7 @@ export default async function ContractorsPage() {
                     </p>
                     <InfoRow label="Registered Name" value={company.name} />
                     <InfoRow label="Business Number" value={c.businessNumber} />
+                    <InfoRow label="Trade / Service" value={c.tradeType} />
                     <InfoRow label="Address" value={c.address} />
                     <InfoRow label="Website" value={c.website} />
                     <InfoRow label="Account Email" value={user?.email} />

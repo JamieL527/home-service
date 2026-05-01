@@ -321,12 +321,29 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
     setPhotoUploading(p => ({ ...p, [cat]: false }))
   }
 
-  async function runOcr(source: PhotoCat, base64: string) {
+  function compressImageBase64(base64: string, maxPx = 1200, quality = 0.75): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1])
+      }
+      img.onerror = () => resolve(base64)
+      img.src = `data:image/jpeg;base64,${base64}`
+    })
+  }
+
+  async function runOcr(source: PhotoCat, rawBase64: string) {
     setOcrSource(source)
     setOcrLoading(true)
     setOcrError('')
     setOcrResult(null)
     try {
+      const base64 = await compressImageBase64(rawBase64)
       const res = await fetch('/api/ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -334,12 +351,12 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
       })
       const data = await res.json()
       if (!res.ok || data.error) {
-        setOcrError('OCR failed, please enter manually')
+        setOcrError(data.error ?? 'OCR failed, please enter manually')
         return
       }
       const text: string = data.text ?? ''
       if (!text.trim()) {
-        setOcrError('No text detected')
+        setOcrError('No text detected in photo')
         return
       }
       setOcrResult(parseOcrText(text))

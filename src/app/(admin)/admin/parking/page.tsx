@@ -124,7 +124,7 @@ export default async function ParkingPage({
           <Zap size={15} className="text-amber-500" />
           <span className="text-sm font-black text-gray-800">Injection Queue</span>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* Left: READY TODAY */}
           <div className="rounded-xl border border-blue-200 overflow-hidden shadow-sm">
@@ -207,14 +207,14 @@ export default async function ParkingPage({
         <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Phase Boards</span>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-4">
+      <div className="grid grid-cols-2 gap-3 pb-2 sm:flex sm:gap-3 sm:overflow-x-auto sm:pb-4">
         {PHASES.map((p) => {
           const leads = boardsByPhase[p] ?? []
           const colors = PHASE_COLORS[p]
           return (
             <div
               key={p}
-              className={`w-[225px] flex-shrink-0 rounded-xl overflow-hidden border ${colors.border} shadow-sm flex flex-col`}
+              className={`min-w-0 sm:w-[225px] sm:flex-shrink-0 rounded-xl overflow-hidden border ${colors.border} shadow-sm flex flex-col`}
             >
               <div className={`${colors.header} px-3 py-2.5 flex items-center justify-between shrink-0`}>
                 <span className="text-xs font-black">{PHASE_FULL_NAMES[p] ?? PHASE_LABELS[p]}</span>

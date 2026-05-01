@@ -405,12 +405,14 @@ export function InboxBoard({
   newCount,
   reactivatedCount,
   errorCount,
+  basePath = '/marketing/inbox',
 }: {
   tab: string
   allLeads: Lead[]
   newCount: number
   reactivatedCount: number
   errorCount: number
+  basePath?: string
 }) {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
 
@@ -475,7 +477,7 @@ export function InboxBoard({
           ].map(({ key, label, count, activeCls, dotCls }) => (
             <Link
               key={key}
-              href={`/marketing/inbox?tab=${key}`}
+              href={`${basePath}?tab=${key}`}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === key ? activeCls : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
@@ -499,7 +501,8 @@ export function InboxBoard({
 
         {/* Kanban board */}
         {totalVisible > 0 && (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="overflow-x-auto pb-2">
+          <div className="grid grid-cols-4 gap-3 min-w-[700px]">
             {COLUMNS.map((col) => {
               const colLeads = filteredLeads.filter((l) => l.status === col.status)
               return (
@@ -540,6 +543,7 @@ export function InboxBoard({
                 </div>
               )
             })}
+          </div>
           </div>
         )}
       </div>

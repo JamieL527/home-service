@@ -95,7 +95,7 @@ export default async function ContractorJobsPage({
       <h1 className="text-2xl font-bold text-foreground mb-6">Jobs</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
           <p className="text-sm font-medium text-blue-600">New Offers</p>
           <p className="mt-2 text-3xl font-bold text-blue-700">{offerCount}</p>

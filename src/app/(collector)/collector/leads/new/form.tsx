@@ -689,7 +689,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                     type="file"
                     multiple
                     accept="image/*"
-                    capture="environment"
+                    
                     ref={photoRefs[key]}
                     className="hidden"
                     onChange={(e) => onPhotoChange(e, key)}
@@ -741,7 +741,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
+                    
                     ref={ocrRefs[key]}
                     className="hidden"
                     onChange={(e) => onOcrFileSelected(e, key)}

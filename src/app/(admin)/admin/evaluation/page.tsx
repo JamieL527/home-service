@@ -104,7 +104,7 @@ export default async function EvaluationPage({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-1">Backed</p>
           <p className="text-3xl font-black text-orange-600">{backedCount}</p>
@@ -223,7 +223,7 @@ export default async function EvaluationPage({
       )}
 
       {/* Two-column layout */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* ── Backed Leads ── */}
         <div className="rounded-xl border border-orange-300 overflow-hidden shadow-sm flex flex-col">

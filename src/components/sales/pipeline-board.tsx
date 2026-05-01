@@ -108,11 +108,11 @@ export function PipelineBoard({ deals, basePath = '/sales' }: { deals: Deal[]; b
         <span className="text-sm text-gray-500">{deals.length} active deal{deals.length !== 1 ? 's' : ''}</span>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-4">
+      <div className="grid grid-cols-2 gap-3 pb-2 sm:flex sm:gap-3 sm:overflow-x-auto sm:pb-4">
         {STAGES.map(stage => {
           const stageDeals = byStage[stage.key]
           return (
-            <div key={stage.key} className="flex-none w-64">
+            <div key={stage.key} className="min-w-0 sm:flex-none sm:w-64">
               <div className={`rounded-t-lg border-t border-x px-3 py-2 flex items-center justify-between ${stage.color}`}>
                 <span className="text-sm font-semibold text-gray-700">{stage.label}</span>
                 <span className="text-xs font-bold text-gray-500 bg-white rounded-full px-2 py-0.5">

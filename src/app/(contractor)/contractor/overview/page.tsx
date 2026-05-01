@@ -52,7 +52,7 @@ export default async function ContractorOverviewPage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Overview</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Link
           href="/contractor/jobs?tab=offers"
           className={`rounded-xl border p-5 transition-colors hover:opacity-90 ${

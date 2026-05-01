@@ -27,6 +27,7 @@ export default async function AdminMarketingPage({
       newCount={newCount}
       reactivatedCount={reactivatedCount}
       errorCount={errorCount}
+      basePath="/admin/marketing"
     />
   )
 }

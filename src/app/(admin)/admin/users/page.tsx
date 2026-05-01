@@ -112,65 +112,86 @@ async function InternalUsersTab() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-left">
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Name</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Team</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Leads Assigned</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Leads Converted</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Conversion Rate</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+        {users.length === 0 && (
+          <p className="py-12 text-center text-gray-400 text-sm">No internal users found.</p>
+        )}
+
+        {/* Mobile card list */}
+        {users.length > 0 && (
+          <div className="sm:hidden divide-y divide-gray-100">
             {users.map((user) => {
               const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
               const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
               const roleLabel = ROLE_LABELS[user.role] ?? user.role
               return (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={name} />
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{name}</p>
-                        <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                      </div>
+                <div key={user.id} className="px-4 py-3 flex items-center gap-3">
+                  <Avatar name={name} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                      <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleColor}`}>
-                      {roleLabel}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3 text-center text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3 text-center text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3 text-center text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-xs text-gray-600">Active</span>
+                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${roleColor}`}>
+                        {roleLabel}
+                      </span>
+                      <span className="text-[11px] text-gray-400">{relativeTime(user.createdAt)}</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                        Edit
-                      </button>
-                      <InternalUserMenu userId={user.id} name={name} />
-                    </div>
-                  </td>
-                </tr>
+                  </div>
+                  <InternalUserMenu userId={user.id} name={name} />
+                </div>
               )
             })}
-          </tbody>
-        </table>
-        {users.length === 0 && (
-          <p className="py-12 text-center text-gray-400 text-sm">No internal users found.</p>
+          </div>
+        )}
+
+        {/* Desktop table */}
+        {users.length > 0 && (
+          <table className="hidden sm:table w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Name</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Joined</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {users.map((user) => {
+                const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+                const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
+                const roleLabel = ROLE_LABELS[user.role] ?? user.role
+                return (
+                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={name} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                            <p className="font-medium text-gray-900 truncate">{name}</p>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleColor}`}>
+                        {roleLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {relativeTime(user.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <InternalUserMenu userId={user.id} name={name} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
@@ -226,96 +247,111 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-left">
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Business Name</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">User Type</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Contact Person</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Trade Type</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Submitted</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Insurance</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Risk Flags</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+        {companies.length === 0 && (
+          <p className="py-12 text-center text-gray-400 text-sm">No contractors in this category.</p>
+        )}
+
+        {/* Mobile card list */}
+        {companies.length > 0 && (
+          <div className="sm:hidden divide-y divide-gray-100">
             {companies.map((company) => {
               const hasInsurance = !!company.insuranceNumber
               const hasWsib = !!company.wsibNumber
               const companyData = {
-                id: company.id,
-                name: company.name,
-                status: company.status as string,
-                businessNumber: company.businessNumber,
-                address: company.address,
-                website: company.website,
-                tradeType: company.tradeType,
-                wsibNumber: company.wsibNumber,
-                insuranceNumber: company.insuranceNumber,
-                contactName: company.contactName,
-                contactTitle: company.contactTitle,
-                contactEmail: company.contactEmail,
-                contactPhone: company.contactPhone,
-                adminNote: company.adminNote,
-                userEmail: company.users[0]?.email ?? null,
+                id: company.id, name: company.name, status: company.status as string,
+                businessNumber: company.businessNumber, address: company.address,
+                website: company.website, tradeType: company.tradeType,
+                wsibNumber: company.wsibNumber, insuranceNumber: company.insuranceNumber,
+                contactName: company.contactName, contactTitle: company.contactTitle,
+                contactEmail: company.contactEmail, contactPhone: company.contactPhone,
+                adminNote: company.adminNote, userEmail: company.users[0]?.email ?? null,
               }
               return (
-                <tr key={company.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={company.name} />
-                      <span className="font-medium text-gray-900">{company.name || '(unnamed)'}</span>
+                <div key={company.id} className="px-4 py-3 flex items-start gap-3">
+                  <Avatar name={company.name} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{company.name || '(unnamed)'}</p>
+                    {company.contactName && (
+                      <p className="text-xs text-gray-400 truncate">{company.contactName}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {company.tradeType && (
+                        <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{company.tradeType}</span>
+                      )}
+                      {hasInsurance
+                        ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-green-700"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Ins.</span>
+                        : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">No Ins.</span>
+                      }
+                      {!hasWsib && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠ WSIB</span>
+                      )}
+                      <span className="text-[11px] text-gray-400">{relativeTime(company.createdAt)}</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                      Contractor
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {company.contactName ? (
-                      <div className="flex items-center gap-2">
-                        <Avatar name={company.contactName} size={28} />
-                        <span className="text-gray-700 text-xs">{company.contactName}</span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{company.tradeType || '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{relativeTime(company.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    {hasInsurance ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        Valid
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                        No Insurance
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {!hasWsib && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        ⚠ WSIB
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ContractorReviewModal company={companyData} />
-                  </td>
-                </tr>
+                  </div>
+                  <ContractorReviewModal company={companyData} />
+                </div>
               )
             })}
-          </tbody>
-        </table>
-        {companies.length === 0 && (
-          <p className="py-12 text-center text-gray-400 text-sm">
-            No contractors in this category.
-          </p>
+          </div>
+        )}
+
+        {/* Desktop table */}
+        {companies.length > 0 && (
+          <table className="hidden sm:table w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Business</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Trade</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Compliance</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Submitted</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {companies.map((company) => {
+                const hasInsurance = !!company.insuranceNumber
+                const hasWsib = !!company.wsibNumber
+                const companyData = {
+                  id: company.id, name: company.name, status: company.status as string,
+                  businessNumber: company.businessNumber, address: company.address,
+                  website: company.website, tradeType: company.tradeType,
+                  wsibNumber: company.wsibNumber, insuranceNumber: company.insuranceNumber,
+                  contactName: company.contactName, contactTitle: company.contactTitle,
+                  contactEmail: company.contactEmail, contactPhone: company.contactPhone,
+                  adminNote: company.adminNote, userEmail: company.users[0]?.email ?? null,
+                }
+                return (
+                  <tr key={company.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={company.name} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{company.name || '(unnamed)'}</p>
+                          {company.contactName && (
+                            <p className="text-xs text-gray-400 truncate">{company.contactName}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{company.tradeType || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {hasInsurance
+                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Ins.</span>
+                          : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">No Ins.</span>
+                        }
+                        {!hasWsib && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠ WSIB</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{relativeTime(company.createdAt)}</td>
+                    <td className="px-4 py-3"><ContractorReviewModal company={companyData} /></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
@@ -357,71 +393,95 @@ async function InvitationsTab() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-left">
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Invitee</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Team</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Sent At</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+        {users.length === 0 && (
+          <p className="py-12 text-center text-gray-400 text-sm">No invitations sent yet.</p>
+        )}
+
+        {/* Mobile card list */}
+        {users.length > 0 && (
+          <div className="sm:hidden divide-y divide-gray-100">
             {users.map(user => {
               const accepted = confirmedEmails.has(user.email.toLowerCase())
               const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
               const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
               const roleLabel = ROLE_LABELS[user.role] ?? user.role
               return (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={name || user.email} />
-                      <div className="min-w-0">
-                        {name && <p className="font-medium text-gray-900 truncate">{name}</p>}
-                        <p className={`text-xs truncate ${name ? 'text-gray-400' : 'font-medium text-gray-700'}`}>
-                          {user.email}
-                        </p>
-                      </div>
+                <div key={user.id} className="px-4 py-3 flex items-center gap-3">
+                  <Avatar name={name || user.email} />
+                  <div className="flex-1 min-w-0">
+                    {name && <p className="text-sm font-medium text-gray-900 truncate">{name}</p>}
+                    <p className={`text-xs truncate ${name ? 'text-gray-400' : 'font-medium text-gray-700'}`}>{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${roleColor}`}>{roleLabel}</span>
+                      {accepted
+                        ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Accepted</span>
+                        : <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />Pending</span>
+                      }
+                      <span className="text-[11px] text-gray-400">{user.invitedAt ? relativeTime(user.invitedAt) : relativeTime(user.createdAt)}</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleColor}`}>
-                      {roleLabel}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-400">—</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
-                    {user.invitedAt ? relativeTime(user.invitedAt) : relativeTime(user.createdAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {accepted ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                        Accepted
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                        Pending
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {!accepted && <ResendInviteButton email={user.email} />}
-                      <InternalUserMenu userId={user.id} name={name || user.email} />
-                    </div>
-                  </td>
-                </tr>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!accepted && <ResendInviteButton email={user.email} />}
+                    <InternalUserMenu userId={user.id} name={name || user.email} />
+                  </div>
+                </div>
               )
             })}
-          </tbody>
-        </table>
-        {users.length === 0 && (
-          <p className="py-12 text-center text-gray-400 text-sm">No invitations sent yet.</p>
+          </div>
+        )}
+
+        {/* Desktop table */}
+        {users.length > 0 && (
+          <table className="hidden sm:table w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Invitee</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Sent</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {users.map(user => {
+                const accepted = confirmedEmails.has(user.email.toLowerCase())
+                const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
+                const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
+                const roleLabel = ROLE_LABELS[user.role] ?? user.role
+                return (
+                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={name || user.email} />
+                        <div className="min-w-0">
+                          {name && <p className="font-medium text-gray-900 truncate">{name}</p>}
+                          <p className={`text-xs truncate ${name ? 'text-gray-400' : 'font-medium text-gray-700'}`}>{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleColor}`}>{roleLabel}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {user.invitedAt ? relativeTime(user.invitedAt) : relativeTime(user.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {accepted
+                        ? <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700"><span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />Accepted</span>
+                        : <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />Pending</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {!accepted && <ResendInviteButton email={user.email} />}
+                        <InternalUserMenu userId={user.id} name={name || user.email} />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

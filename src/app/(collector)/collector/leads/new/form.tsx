@@ -167,6 +167,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [ocrError, setOcrError] = useState('')
   const [ocrSource, setOcrSource] = useState<PhotoCat>('site')
+  const [ocrFilled, setOcrFilled] = useState<Set<string>>(new Set())
   const [uploadError, setUploadError] = useState('')
   const [lightbox, setLightbox] = useState<{ urls: string[]; label: string; idx: number } | null>(null)
 
@@ -342,6 +343,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
     setOcrLoading(true)
     setOcrError('')
     setOcrResult(null)
+    setOcrFilled(new Set())
     try {
       const base64 = await compressImageBase64(rawBase64)
       const res = await fetch('/api/ocr', {
@@ -830,21 +832,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <Phone size={10} /> Phone Numbers
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.phones.map((p, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700 font-mono">{p}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('phone', p)
-                                : updateContact(0, 'phone', p)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.phones.map((p, i) => {
+                          const k = `phone-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700 font-mono">{p}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('phone', p) : updateContact(0, 'phone', p); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -855,21 +857,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <Building2 size={10} /> Company Names
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.companies.map((c, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700 truncate">{c}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('company', c)
-                                : setBusinessName(c)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.companies.map((c, i) => {
+                          const k = `company-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700 truncate">{c}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('company', c) : setBusinessName(c); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -880,21 +882,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <Link size={10} /> Websites
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.websites.map((w, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700 truncate">{w}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('website', w)
-                                : setWebsite(w)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.websites.map((w, i) => {
+                          const k = `website-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700 truncate">{w}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('website', w) : setWebsite(w); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -905,21 +907,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <AtSign size={10} /> Emails
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.emails.map((e, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700 truncate">{e}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('email', e)
-                                : updateContact(0, 'email', e)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.emails.map((e, i) => {
+                          const k = `email-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700 truncate">{e}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('email', e) : updateContact(0, 'email', e); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -930,21 +932,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <Star size={10} /> Person Names
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.names.map((n, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700">{n}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('contact', n)
-                                : updateContact(0, 'name', n)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.names.map((n, i) => {
+                          const k = `name-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700">{n}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('contact', n) : updateContact(0, 'name', n); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -955,21 +957,21 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                         <MapPin size={10} /> Addresses
                       </p>
                       <div className="space-y-1">
-                        {ocrResult.addresses.map((a, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-700 truncate">{a}</span>
-                            <button
-                              type="button"
-                              onClick={() => ocrSource === 'supply'
-                                ? fillLastSupply('officeLocation', a)
-                                : setOfficeLocation(a)
-                              }
-                              className="shrink-0 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded"
-                            >
-                              Fill
-                            </button>
-                          </div>
-                        ))}
+                        {ocrResult.addresses.map((a, i) => {
+                          const k = `address-${i}`
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-700 truncate">{a}</span>
+                              <button
+                                type="button"
+                                onClick={() => { ocrSource === 'supply' ? fillLastSupply('officeLocation', a) : setOfficeLocation(a); setOcrFilled(s => new Set(s).add(k)) }}
+                                className={`shrink-0 text-xs font-bold px-3 py-2 rounded transition-colors ${ocrFilled.has(k) ? 'text-green-700 bg-green-50' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                              >
+                                {ocrFilled.has(k) ? '✓ Filled' : 'Fill'}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm text-center">
+        <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-sm text-center">
           <h1 className="text-lg font-semibold text-foreground">Check your email</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             We sent a password reset link to your email address. Please check your inbox.
@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm">
+      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-sm">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-foreground">Forgot password</h1>
           <p className="mt-1 text-sm text-muted-foreground">

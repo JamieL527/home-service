@@ -25,9 +25,9 @@ type Company = {
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
-    <div className="flex gap-3 text-sm">
-      <span className="w-32 shrink-0 text-gray-400">{label}</span>
-      <span className="text-gray-800 break-all">{value}</span>
+    <div className="flex gap-2 text-sm">
+      <span className="w-28 shrink-0 text-gray-400 text-xs leading-5">{label}</span>
+      <span className="text-gray-800 break-words min-w-0">{value}</span>
     </div>
   )
 }
@@ -119,7 +119,7 @@ export function ContractorReviewModal({ company }: { company: Company }) {
             {/* Body */}
             <div className="overflow-y-auto flex-1 px-6 py-5">
               {view === 'profile' && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Business</p>
                     <InfoRow label="Registered Name" value={company.name} />

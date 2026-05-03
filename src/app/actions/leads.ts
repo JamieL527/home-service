@@ -61,6 +61,12 @@ export async function createLead(
     if (raw) ocrData = JSON.parse(raw)
   } catch { ocrData = null }
 
+  let cityData: object | null = null
+  try {
+    const raw = formData.get('cityData') as string
+    if (raw) cityData = JSON.parse(raw)
+  } catch { cityData = null }
+
   let suppliers: SupplierInput[] = []
   try {
     const raw = formData.get('supply') as string
@@ -113,6 +119,7 @@ export async function createLead(
       zoneId,
       zoneName,
       ocrData: ocrData ?? undefined,
+      cityData: cityData ?? undefined,
       photos: photosData ?? undefined,
       createdById: prismaUser.id,
       status: 'SUBMITTED' as never,

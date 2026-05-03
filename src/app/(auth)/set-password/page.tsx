@@ -37,7 +37,7 @@ export default function SetPasswordPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-lg">
+      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-lg">
         <h1 className="text-xl font-semibold text-foreground">Set your password</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Create a password to access your account in the future.

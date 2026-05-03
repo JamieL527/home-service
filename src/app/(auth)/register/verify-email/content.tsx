@@ -9,7 +9,7 @@ export function VerifyEmailContent({ email }: { email: string }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm text-center">
+      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-sm text-center">
         <div className="mb-4 text-4xl">📧</div>
         <h1 className="text-xl font-semibold text-foreground">Check your email</h1>
         <p className="mt-3 text-sm text-muted-foreground">

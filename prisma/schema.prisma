@@ -9,6 +9,224 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id                  String             @id @default(uuid())
+  email               String             @unique
+  role                Role
+  contractorCompanyId String?
+  createdAt           DateTime           @default(now())
+  firstName           String?
+  lastName            String?
+  invitedAt           DateTime?
+  zoneId              String?
+  contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
+  zone                Zone?              @relation(fields: [zoneId], references: [id])
+}
+
+model ContractorCompany {
+  id              String                  @id @default(uuid())
+  name            String
+  status          ContractorCompanyStatus @default(UNVERIFIED_PROFILE)
+  createdAt       DateTime                @default(now())
+  address         String?
+  adminNote       String?
+  businessNumber  String?
+  contactEmail    String?
+  contactName     String?
+  contactPhone    String?
+  contactTitle    String?
+  insuranceNumber String?
+  termsAccepted   Boolean                 @default(false)
+  termsAcceptedAt DateTime?
+  website         String?
+  wsibNumber      String?
+  tradeType       String?
+  jobs            Job[]
+  offers          JobOffer[]
+  users           User[]
+}
+
+model Lead {
+  id                String         @id @default(uuid())
+  address           String
+  lat               Float?
+  lng               Float?
+  status            LeadStatus     @default(DRAFT)
+  source            String?
+  createdById       String?
+  createdAt         DateTime       @default(now())
+  businessName      String?
+  cityData          Json?
+  initialComment    String?
+  ocrData           Json?
+  officeLocation    String?
+  phase             String?
+  photos            Json?
+  rating            String?
+  updatedAt         DateTime       @updatedAt
+  website           String?
+  zoneName          String?
+  isUrgent          Boolean        @default(false)
+  scheduledInjectAt DateTime?
+  reviewComment     String?
+  submittedAt       DateTime?
+  marketingNote     String?
+  marketingTag      String?
+  nextFollowUpDate  DateTime?
+  retryCount        Int            @default(0)
+  sentimentTag      String?
+  zoneId            String?
+  deals             Deal[]
+  jobs              Job[]
+  contacts          LeadContact[]
+  suppliers         LeadSupplier[]
+}
+
+model LeadSupplier {
+  id             String  @id @default(uuid())
+  leadId         String
+  trade          String?
+  company        String?
+  contact        String?
+  phone          String?
+  email          String?
+  website        String?
+  officeLocation String?
+  interaction    String?
+  lead           Lead    @relation(fields: [leadId], references: [id])
+}
+
+model LeadContact {
+  id     String  @id @default(uuid())
+  leadId String
+  name   String?
+  email  String?
+  phone  String?
+  role   String?
+  lead   Lead    @relation(fields: [leadId], references: [id])
+}
+
+model Job {
+  id             String             @id @default(uuid())
+  leadId         String
+  scope          String?
+  status         JobStatus          @default(PENDING)
+  createdAt      DateTime           @default(now())
+  phase          String?
+  contractorType String?
+  priceFixed     Float?
+  priceMax       Float?
+  priceMin       Float?
+  priceType      String?
+  serviceType    String?
+  timeline       String?
+  companyId      String?
+  progressNote   String?
+  progressPhotos Json?
+  company        ContractorCompany? @relation(fields: [companyId], references: [id])
+  lead           Lead               @relation(fields: [leadId], references: [id])
+  offers         JobOffer[]
+}
+
+model JobOffer {
+  id          String            @id @default(uuid())
+  jobId       String
+  status      String            @default("pending")
+  sentAt      DateTime          @default(now())
+  respondedAt DateTime?
+  companyId   String
+  company     ContractorCompany @relation(fields: [companyId], references: [id])
+  job         Job               @relation(fields: [jobId], references: [id])
+}
+
+model Deal {
+  id              String    @id @default(uuid())
+  leadId          String
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
+  clientName      String?
+  currentStage    String    @default("NEW_OPPORTUNITY")
+  deadline        DateTime?
+  estimatedValue  Float?
+  lossReason      String?
+  negotiationDate DateTime?
+  notes           String?
+  ownerId         String?
+  phase           String?
+  projectName     String?
+  projectType     String?
+  siteVisitDate   DateTime?
+  updatedAt       DateTime  @updatedAt
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  quotes          Quote[]
+}
+
+model Quote {
+  id          String    @id @default(uuid())
+  dealId      String
+  version     Int       @default(1)
+  lineItems   Json?
+  subtotal    Float?
+  tax         Float?
+  total       Float?
+  status      String    @default("draft")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  submittedAt DateTime?
+  deal        Deal      @relation(fields: [dealId], references: [id])
+}
+
+model Zone {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model permits {
+  id                             BigInt    @id
+  permit_num                     String
+  revision_num                   String?
+  permit_type                    String?
+  structure_type                 String?
+  work                           String?
+  street_num                     String?
+  street_name                    String?
+  street_type                    String?
+  street_direction               String?
+  postal                         String?
+  geo_id                         String?
+  ward_grid                      String?
+  application_date               DateTime? @db.Date
+  issued_date                    DateTime? @db.Date
+  completed_date                 DateTime? @db.Date
+  status                         String?
+  description                    String?
+  current_use                    String?
+  proposed_use                   String?
+  dwelling_units_created         Int?
+  dwelling_units_lost            Int?
+  est_const_cost                 Decimal?  @db.Decimal
+  assembly                       Decimal?  @db.Decimal
+  institutional                  Decimal?  @db.Decimal
+  residential                    Decimal?  @db.Decimal
+  business_and_personal_services Decimal?  @db.Decimal
+  mercantile                     Decimal?  @db.Decimal
+  industrial                     Decimal?  @db.Decimal
+  interior_alterations           Decimal?  @db.Decimal
+  demolition                     Decimal?  @db.Decimal
+  builder_name                   String?
+
+  @@index([application_date], map: "idx_permits_application_date")
+  @@index([permit_type], map: "idx_permits_permit_type")
+  @@index([status], map: "idx_permits_status")
+  @@index([ward_grid], map: "idx_permits_ward_grid")
+}
+
 enum Role {
   ADMIN
   SALES
@@ -21,6 +239,7 @@ enum LeadStatus {
   DRAFT
   SUBMITTED
   UNDER_REVIEW
+  QUALIFIED
   NEEDS_FIX
   RESUBMITTED
   REJECTED
@@ -31,23 +250,22 @@ enum LeadStatus {
   PARKED
   SCHEDULED
   INJECTED
+  JOB_ACTIVE
   MARKETING_INBOX
   TO_CONTACT
   CONTACTING
   NO_RESPONSE
   CONTACT_ESTABLISHED
-  QUALIFIED
-  JOB_ACTIVE
 }
 
 enum JobStatus {
   PENDING
-  READY
-  OFFER_SENT
   ASSIGNED
   IN_PROGRESS
   COMPLETED
   VERIFIED
+  READY
+  OFFER_SENT
   CANCELLED
 }
 
@@ -57,186 +275,4 @@ enum ContractorCompanyStatus {
   ACTIVE
   REJECTED
   ACTION_REQUIRED
-}
-
-model User {
-  id                  String             @id @default(uuid())
-  email               String             @unique
-  role                Role
-  firstName           String?
-  lastName            String?
-  contractorCompanyId String?
-  contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
-  zoneId              String?
-  zone                Zone?              @relation(fields: [zoneId], references: [id])
-  invitedAt           DateTime?
-  createdAt           DateTime           @default(now())
-}
-
-model ContractorCompany {
-  id              String                  @id @default(uuid())
-  name            String
-  status          ContractorCompanyStatus @default(UNVERIFIED_PROFILE)
-  businessNumber  String?
-  address         String?
-  website         String?
-  tradeType       String?
-  wsibNumber      String?
-  insuranceNumber String?
-  contactName     String?
-  contactTitle    String?
-  contactEmail    String?
-  contactPhone    String?
-  termsAccepted   Boolean                 @default(false)
-  termsAcceptedAt DateTime?
-  adminNote       String?
-  users           User[]
-  jobs            Job[]
-  offers          JobOffer[]
-  createdAt       DateTime                @default(now())
-}
-
-model Lead {
-  id             String     @id @default(uuid())
-  address        String
-  lat            Float?
-  lng            Float?
-  status         LeadStatus @default(DRAFT)
-  source         String?
-  phase          String?
-  initialComment String?
-  createdById    String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-
-  businessName   String?
-  officeLocation String?
-  rating         String?
-  website        String?
-
-  cityData       Json?
-  photos         Json?
-  ocrData        Json?
-
-  zoneId            String?
-  zoneName          String?
-  isUrgent          Boolean   @default(false)
-  scheduledInjectAt DateTime?
-  reviewComment     String?
-  submittedAt       DateTime?
-  marketingTag      String?
-  retryCount        Int       @default(0)
-  nextFollowUpDate  DateTime?
-  marketingNote     String?
-  sentimentTag      String?
-
-  contacts       LeadContact[]
-  suppliers      LeadSupplier[]
-  jobs           Job[]
-  deals          Deal[]
-}
-
-model LeadSupplier {
-  id             String  @id @default(uuid())
-  leadId         String
-  lead           Lead    @relation(fields: [leadId], references: [id])
-  trade          String?
-  company        String?
-  contact        String?
-  phone          String?
-  email          String?
-  website        String?
-  officeLocation String?
-  interaction    String?
-}
-
-model LeadContact {
-  id     String  @id @default(uuid())
-  leadId String
-  lead   Lead    @relation(fields: [leadId], references: [id])
-  name   String?
-  email  String?
-  phone  String?
-  role   String?
-}
-
-model Job {
-  id             String      @id @default(uuid())
-  leadId         String
-  lead           Lead        @relation(fields: [leadId], references: [id])
-  phase          String?
-  status         JobStatus   @default(PENDING)
-  scope          String?
-  priceType      String?
-  priceFixed     Float?
-  priceMin       Float?
-  priceMax       Float?
-  timeline       String?
-  serviceType    String?
-  contractorType String?
-  companyId      String?
-  company        ContractorCompany? @relation(fields: [companyId], references: [id])
-  progressNote   String?
-  progressPhotos Json?
-  offers         JobOffer[]
-  createdAt      DateTime    @default(now())
-}
-
-model JobOffer {
-  id          String            @id @default(uuid())
-  jobId       String
-  job         Job               @relation(fields: [jobId], references: [id])
-  companyId   String
-  company     ContractorCompany @relation(fields: [companyId], references: [id])
-  status      String            @default("pending")
-  sentAt      DateTime          @default(now())
-  respondedAt DateTime?
-}
-
-
-model Deal {
-  id              String    @id @default(uuid())
-  leadId          String
-  lead            Lead      @relation(fields: [leadId], references: [id])
-  projectName     String?
-  clientName      String?
-  projectType     String?
-  phase           String?
-  estimatedValue  Float?
-  currentStage    String    @default("NEW_OPPORTUNITY")
-  ownerId         String?
-  status          String    @default("active")
-  lossReason      String?
-  notes           String?
-  siteVisitDate   DateTime?
-  deadline        DateTime?
-  negotiationDate DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  quotes          Quote[]
-}
-
-model Quote {
-  id          String    @id @default(uuid())
-  dealId      String
-  deal        Deal      @relation(fields: [dealId], references: [id])
-  version     Int       @default(1)
-  lineItems   Json?
-  subtotal    Float?
-  tax         Float?
-  total       Float?
-  status      String    @default("draft")
-  notes       String?
-  createdAt   DateTime  @default(now())
-  submittedAt DateTime?
-}
-
-model Zone {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  color       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User[]
 }

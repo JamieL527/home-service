@@ -95,6 +95,20 @@ function MapCameraUpdater({ coords, pinDropped }: { coords: { lat: number; lng: 
   return null
 }
 
+function formatCurrency(value: number | string | null | undefined): string {
+  if (value == null || value === '') return ''
+  const num = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(num)) return ''
+  return '$' + Math.round(num).toLocaleString('en-CA')
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return value
+  return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zoneName?: string | null }) {
   // View state: 'map' | 'form'
   const [view, setView] = useState<'map' | 'form'>('map')
@@ -169,6 +183,14 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
   const [ocrSource, setOcrSource] = useState<PhotoCat>('site')
   const [ocrFilled, setOcrFilled] = useState<Set<string>>(new Set())
   const [uploadError, setUploadError] = useState('')
+
+  // Permit / City Data state
+  type PermitData = { permitNum: string; permitType: string; permitStatus: string; applicationDate: string; estConstructionCost: string; description: string; builderName: string }
+  type PermitRecord = { permit_num: string; permit_type: string | null; status: string | null; application_date: string | null; est_const_cost: number | null; description: string | null; builder_name: string | null }
+  const [permitData, setPermitData] = useState<PermitData>({ permitNum: '', permitType: '', permitStatus: '', applicationDate: '', estConstructionCost: '', description: '', builderName: '' })
+  const [permitLookupState, setPermitLookupState] = useState<'idle' | 'loading' | 'found' | 'not_found'>('idle')
+  const [allPermits, setAllPermits] = useState<PermitRecord[]>([])
+  const [showAllPermits, setShowAllPermits] = useState(false)
   const [lightbox, setLightbox] = useState<{ urls: string[]; label: string; idx: number } | null>(null)
 
   // Demand side controlled fields (for OCR fill)
@@ -201,6 +223,39 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
       }
     }
   }, [])
+
+  // Fetch permit data when transitioning to form view
+  useEffect(() => {
+    if (view !== 'form' || !address) return
+    let cancelled = false
+    setPermitLookupState('loading')
+    fetch('/api/permits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        if (data.permit) {
+          setPermitData({
+            permitNum: data.permit.permit_num ?? '',
+            permitType: data.permit.permit_type ?? '',
+            permitStatus: data.permit.status ?? '',
+            applicationDate: formatDate(data.permit.application_date),
+            estConstructionCost: formatCurrency(data.permit.est_const_cost),
+            description: data.permit.description ?? '',
+            builderName: data.permit.builder_name ?? '',
+          })
+          setAllPermits(data.allPermits ?? [])
+          setPermitLookupState('found')
+        } else {
+          setPermitLookupState('not_found')
+        }
+      })
+      .catch(() => { if (!cancelled) setPermitLookupState('not_found') })
+    return () => { cancelled = true }
+  }, [view, address])
 
   // Toggle voice recording
   const toggleRecording = () => {
@@ -663,6 +718,15 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
         {zoneId && <input type="hidden" name="zoneId" value={zoneId} />}
         {zoneName && <input type="hidden" name="zoneName" value={zoneName} />}
         {ocrResult && <input type="hidden" name="ocrData" value={JSON.stringify({ text: ocrResult.text })} />}
+        <input type="hidden" name="cityData" value={JSON.stringify({
+          permitNum: permitData.permitNum || null,
+          permitType: permitData.permitType || null,
+          permitStatus: permitData.permitStatus || null,
+          applicationDate: permitData.applicationDate || null,
+          estConstructionCost: permitData.estConstructionCost || null,
+          description: permitData.description || null,
+          builderName: permitData.builderName || null,
+        })} />
         <input type="hidden" name="photos" value={JSON.stringify({
           site:   photoUrls.site.filter(u => !u.startsWith('blob:')),
           demand: photoUrls.demand.filter(u => !u.startsWith('blob:')),
@@ -680,21 +744,154 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
           )}
           {/* ── 1. City Data ── */}
           <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
-              <label className="text-xs font-bold text-purple-700 uppercase flex items-center">
-                <Database size={14} className="mr-1" /> 1. City Data
-              </label>
+            <div className="flex items-center gap-1.5 mb-3">
+              <Database size={14} className="text-purple-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700">1. City Data</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-white p-2 rounded border border-purple-100">
-                <span className="text-xs text-purple-400 block">Permit #</span>
-                <span className="text-gray-400 italic">Pending API...</span>
+
+            {/* Permit lookup status */}
+            {permitLookupState === 'loading' && (
+              <div className="flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-2 text-xs text-purple-700 mb-3">
+                <Loader2 size={13} className="animate-spin shrink-0" />
+                Fetching permit data...
               </div>
-              <div className="bg-white p-2 rounded border border-purple-100">
-                <span className="text-xs text-purple-400 block">Value</span>
-                <span className="text-gray-400 italic">Pending API...</span>
+            )}
+            {permitLookupState === 'found' && (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-xs text-green-700 mb-3">
+                <CheckCircle size={13} className="shrink-0" />
+                Permit data found and filled automatically
+              </div>
+            )}
+            {permitLookupState === 'not_found' && (
+              <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500 mb-3">
+                <Database size={13} className="shrink-0" />
+                No permit data found, please fill manually
+              </div>
+            )}
+
+            {/* Editable fields — most recent permit */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Permit Number</span>
+                  <input
+                    type="text"
+                    value={permitData.permitNum}
+                    onChange={e => setPermitData(p => ({ ...p, permitNum: e.target.value }))}
+                    placeholder="e.g. 22-123456"
+                    className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Permit Type</span>
+                  <input
+                    type="text"
+                    value={permitData.permitType}
+                    onChange={e => setPermitData(p => ({ ...p, permitType: e.target.value }))}
+                    placeholder="e.g. New Building"
+                    className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Permit Status</span>
+                  <input
+                    type="text"
+                    value={permitData.permitStatus}
+                    onChange={e => setPermitData(p => ({ ...p, permitStatus: e.target.value }))}
+                    placeholder="e.g. Issued"
+                    className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Application Date</span>
+                  <input
+                    type="text"
+                    value={permitData.applicationDate}
+                    onChange={e => setPermitData(p => ({ ...p, applicationDate: e.target.value }))}
+                    placeholder="e.g. Jan 15, 2022"
+                    className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Est. Construction Cost</span>
+                <input
+                  type="text"
+                  value={permitData.estConstructionCost}
+                  onChange={e => setPermitData(p => ({ ...p, estConstructionCost: e.target.value }))}
+                  placeholder="e.g. $125,000"
+                  className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Description</span>
+                <input
+                  type="text"
+                  value={permitData.description}
+                  onChange={e => setPermitData(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Permit description"
+                  className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-purple-500 font-semibold uppercase block mb-0.5">Builder Name</span>
+                <input
+                  type="text"
+                  value={permitData.builderName}
+                  onChange={e => setPermitData(p => ({ ...p, builderName: e.target.value }))}
+                  placeholder="Builder / contractor"
+                  className="w-full p-2.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
               </div>
             </div>
+
+            {/* View all permits toggle */}
+            {allPermits.length > 0 && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAllPermits(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors"
+                >
+                  <ChevronRight size={13} className={`transition-transform ${showAllPermits ? 'rotate-90' : ''}`} />
+                  View all permits ({allPermits.length})
+                </button>
+
+                {showAllPermits && (
+                  <div className="mt-2 space-y-2">
+                    {allPermits.map((p, i) => (
+                      <div key={i} className="bg-white border border-purple-100 rounded-lg p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-purple-800 truncate">{p.permit_num}</span>
+                          {p.status && (
+                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold">
+                              {p.status}
+                            </span>
+                          )}
+                        </div>
+                        {p.permit_type && (
+                          <div className="text-gray-500"><span className="font-medium text-gray-700">Type:</span> {p.permit_type}</div>
+                        )}
+                        {p.application_date && (
+                          <div className="text-gray-500"><span className="font-medium text-gray-700">Applied:</span> {formatDate(p.application_date)}</div>
+                        )}
+                        {p.est_const_cost != null && (
+                          <div className="text-gray-500"><span className="font-medium text-gray-700">Est. Cost:</span> {formatCurrency(p.est_const_cost)}</div>
+                        )}
+                        {p.description && (
+                          <div className="text-gray-500 line-clamp-2"><span className="font-medium text-gray-700">Description:</span> {p.description}</div>
+                        )}
+                        {p.builder_name && (
+                          <div className="text-gray-500"><span className="font-medium text-gray-700">Builder:</span> {p.builder_name}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── 2. Visual Evidence ── */}

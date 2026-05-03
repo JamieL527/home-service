@@ -97,9 +97,13 @@ function getActionVariant(status: string): 'evaluation-new' | 'evaluation-backed
 }
 
 type CityData = {
-  permitNumber?: string | null
+  permitNum?: string | null
+  permitType?: string | null
   permitStatus?: string | null
-  propertyValue?: string | null
+  applicationDate?: string | null
+  estConstructionCost?: string | null
+  description?: string | null
+  builderName?: string | null
   [key: string]: unknown
 }
 
@@ -203,14 +207,22 @@ export default async function AdminLeadDetailPage({
         >
           {cityData ? (
             <dl className="grid grid-cols-2 gap-4">
-              <DataRow label="Permit Number" value={cityData.permitNumber} />
+              <DataRow label="Permit Number" value={cityData.permitNum} />
+              <DataRow label="Permit Type" value={cityData.permitType} />
               <DataRow label="Permit Status" value={cityData.permitStatus} />
+              <DataRow label="Application Date" value={cityData.applicationDate} />
               <div className="col-span-2">
-                <DataRow label="Property Value" value={cityData.propertyValue} />
+                <DataRow label="Est. Construction Cost" value={cityData.estConstructionCost} />
+              </div>
+              <div className="col-span-2">
+                <DataRow label="Description" value={cityData.description} />
+              </div>
+              <div className="col-span-2">
+                <DataRow label="Builder Name" value={cityData.builderName} />
               </div>
             </dl>
           ) : (
-            <EmptyState text="City data not yet available (pending API integration)." />
+            <EmptyState text="No city data available." />
           )}
         </SectionCard>
 

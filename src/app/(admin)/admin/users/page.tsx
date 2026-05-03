@@ -111,7 +111,7 @@ async function InternalUsersTab() {
         <InviteUserButton zones={zones} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200">
         {users.length === 0 && (
           <p className="py-12 text-center text-gray-400 text-sm">No internal users found.</p>
         )}
@@ -148,7 +148,8 @@ async function InternalUsersTab() {
 
         {/* Desktop table */}
         {users.length > 0 && (
-          <table className="hidden sm:table w-full text-sm">
+          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Name</th>
@@ -192,6 +193,7 @@ async function InternalUsersTab() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -246,7 +248,7 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
         })}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200">
         {companies.length === 0 && (
           <p className="py-12 text-center text-gray-400 text-sm">No contractors in this category.</p>
         )}
@@ -297,7 +299,8 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
 
         {/* Desktop table */}
         {companies.length > 0 && (
-          <table className="hidden sm:table w-full text-sm">
+          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Business</th>
@@ -352,6 +355,7 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -392,7 +396,7 @@ async function InvitationsTab() {
         <InviteUserButton zones={zones} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200">
         {users.length === 0 && (
           <p className="py-12 text-center text-gray-400 text-sm">No invitations sent yet.</p>
         )}
@@ -432,7 +436,8 @@ async function InvitationsTab() {
 
         {/* Desktop table */}
         {users.length > 0 && (
-          <table className="hidden sm:table w-full text-sm">
+          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Invitee</th>
@@ -482,6 +487,7 @@ async function InvitationsTab() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

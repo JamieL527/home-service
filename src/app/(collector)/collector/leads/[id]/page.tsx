@@ -4,7 +4,7 @@ import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
 import {
   MapPin, Building, Hammer, MessageCircle,
-  Camera, Users, Phone, Mail, AlertTriangle, CheckCircle,
+  Camera, Users, Phone, Mail, AlertTriangle, CheckCircle, Database,
 } from 'lucide-react'
 import { PhotoGrid, type PhotoItem } from '@/components/ui/photo-grid'
 import { ResubmitButton } from './resubmit-button'
@@ -88,6 +88,17 @@ export default async function LeadDetailPage({
 
   const status = lead.status as string
   const isNeedsFix = status === 'NEEDS_FIX'
+
+  type CityData = {
+    permitNum?: string | null
+    permitType?: string | null
+    permitStatus?: string | null
+    applicationDate?: string | null
+    estConstructionCost?: string | null
+    description?: string | null
+    builderName?: string | null
+  }
+  const cityData = lead.cityData as CityData | null
 
   // Compute missing fields for completeness strip
   const missing: Array<{ label: string; section: string }> = []
@@ -197,9 +208,35 @@ export default async function LeadDetailPage({
           </dl>
         </SectionCard>
 
+        {/* City Data */}
+        <SectionCard
+          Icon={Database} title="2. City Data"
+          colorClass="text-purple-700" bgClass="bg-purple-50" borderClass="border-purple-100"
+        >
+          {cityData ? (
+            <dl className="grid grid-cols-2 gap-4">
+              <DataRow label="Permit Number" value={cityData.permitNum} />
+              <DataRow label="Permit Type" value={cityData.permitType} />
+              <DataRow label="Permit Status" value={cityData.permitStatus} />
+              <DataRow label="Application Date" value={cityData.applicationDate} />
+              <div className="col-span-2">
+                <DataRow label="Est. Construction Cost" value={cityData.estConstructionCost} />
+              </div>
+              <div className="col-span-2">
+                <DataRow label="Description" value={cityData.description} />
+              </div>
+              <div className="col-span-2">
+                <DataRow label="Builder Name" value={cityData.builderName} />
+              </div>
+            </dl>
+          ) : (
+            <p className="text-xs text-gray-400">No city data available.</p>
+          )}
+        </SectionCard>
+
         {/* Photos */}
         <SectionCard
-          Icon={Camera} title="2. Visual Evidence"
+          Icon={Camera} title="3. Visual Evidence"
           colorClass="text-gray-500" bgClass="bg-gray-50" borderClass="border-gray-200"
         >
           {(() => {
@@ -218,7 +255,7 @@ export default async function LeadDetailPage({
         {/* Demand Side */}
         <div id="section-demand">
           <SectionCard
-            Icon={Building} title="3. Demand Side"
+            Icon={Building} title="4. Demand Side"
             colorClass="text-blue-700" bgClass="bg-blue-50" borderClass="border-blue-100"
             action={
               <Link
@@ -282,7 +319,7 @@ export default async function LeadDetailPage({
 
         {/* Supply */}
         <SectionCard
-          Icon={Hammer} title="4. Supply Side"
+          Icon={Hammer} title="5. Supply Side"
           colorClass="text-amber-700" bgClass="bg-amber-50" borderClass="border-amber-100"
           action={
             <Link

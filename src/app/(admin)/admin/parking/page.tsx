@@ -86,7 +86,6 @@ export default async function ParkingPage({
       <div className="mb-5">
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">
           Parking{' '}
-          <span className="text-lg font-medium text-gray-400">(Scheduling & Injection)</span>
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">Hold, schedule, and release leads into the job pipeline</p>
       </div>

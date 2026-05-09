@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { normalizeUrl } from '@/lib/utils'
 
 type PhotoCategory = 'site' | 'demand' | 'supply' | 'other'
 type PhotosData = Record<PhotoCategory, string[]>
@@ -93,7 +94,7 @@ export async function updateLeadDetails(
       where: { id: leadId },
       data: {
         businessName: fields.businessName.trim() || null,
-        website: fields.website.trim() || null,
+        website: normalizeUrl(fields.website),
         officeLocation: fields.officeLocation.trim() || null,
         rating: fields.rating.trim() || null,
         zoneName: fields.zoneName.trim() || null,
@@ -132,7 +133,7 @@ export async function updateLeadDetails(
           contact: s.contact.trim() || null,
           phone: s.phone.trim() || null,
           email: s.email.trim() || null,
-          website: s.website.trim() || null,
+          website: normalizeUrl(s.website),
           officeLocation: s.officeLocation.trim() || null,
           interaction: s.interaction.trim() || null,
         })),

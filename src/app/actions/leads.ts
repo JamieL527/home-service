@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { normalizeUrl } from '@/lib/utils'
 
 type ContactInput = {
   name?: string
@@ -51,10 +52,11 @@ export async function createLead(
   const initialComment = (formData.get('initialComment') as string)?.trim() || null
   const businessName = (formData.get('businessName') as string)?.trim() || null
   const officeLocation = (formData.get('officeLocation') as string)?.trim() || null
-  const website = (formData.get('website') as string)?.trim() || null
+  const website = normalizeUrl(formData.get('website') as string)
   const rating = (formData.get('rating') as string)?.trim() || null
   const zoneName = (formData.get('zoneName') as string)?.trim() || null
   const zoneId = (formData.get('zoneId') as string)?.trim() || null
+  const routeTaskId = (formData.get('routeTaskId') as string)?.trim() || null
   let ocrData: object | null = null
   try {
     const raw = formData.get('ocrData') as string
@@ -118,6 +120,7 @@ export async function createLead(
       rating,
       zoneId,
       zoneName,
+      routeTaskId: routeTaskId ?? undefined,
       ocrData: ocrData ?? undefined,
       cityData: cityData ?? undefined,
       photos: photosData ?? undefined,
@@ -125,6 +128,14 @@ export async function createLead(
       status: 'SUBMITTED' as never,
     },
   })
+
+  // Advance task to in_progress when first lead is submitted
+  if (routeTaskId) {
+    await prisma.routeTask.updateMany({
+      where: { id: routeTaskId, assignedToId: prismaUser.id, status: 'assigned' },
+      data: { status: 'in_progress' },
+    })
+  }
 
   const validContacts = contacts.filter(
     (c) => c.name?.trim() || c.email?.trim() || c.phone?.trim() || c.role?.trim()
@@ -153,7 +164,7 @@ export async function createLead(
         contact: s.contact?.trim() || null,
         phone: s.phone?.trim() || null,
         email: s.email?.trim() || null,
-        website: s.website?.trim() || null,
+        website: normalizeUrl(s.website),
         officeLocation: s.officeLocation?.trim() || null,
         interaction: s.interaction?.trim() || null,
       })),

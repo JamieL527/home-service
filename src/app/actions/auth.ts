@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { prisma } from '@/lib/prisma'
 import { validatePassword } from '@/lib/validations/password'
+import { normalizeUrl } from '@/lib/utils'
 
 const ROLE_ROUTES: Record<string, string> = {
   ADMIN: '/admin',
@@ -162,7 +163,7 @@ export async function saveBusinessProfile(
   const name = (formData.get('name') as string)?.trim()
   const businessNumber = (formData.get('businessNumber') as string)?.trim()
   const address = (formData.get('address') as string)?.trim()
-  const website = (formData.get('website') as string)?.trim() || null
+  const website = normalizeUrl(formData.get('website') as string)
   const tradeType = (formData.get('tradeType') as string)?.trim() || null
   const contactName = (formData.get('contactName') as string)?.trim()
   const contactTitle = (formData.get('contactTitle') as string)?.trim()

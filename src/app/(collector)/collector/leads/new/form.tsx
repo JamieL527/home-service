@@ -10,7 +10,7 @@ import {
   Plus, Globe, X, Save, RefreshCw, Layers, Star,
   Crosshair, Loader2, ChevronLeft, ChevronRight, CheckCircle, Mic,
   Navigation, Database, Mail, ScanText, Phone, AtSign,
-  Building2, Link
+  Building2, Link, Route,
 } from 'lucide-react'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
@@ -63,6 +63,68 @@ const PHOTO_ITEMS: { key: PhotoCat; label: string; Icon: React.ElementType }[] =
   { key: 'other', label: 'Other', Icon: Plus },
 ]
 
+type LatLng = { lat: number; lng: number }
+type FormRouteTask = { id: string; name: string; polygon: unknown; color: string }
+
+function centroid(poly: LatLng[]): LatLng {
+  const s = poly.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 })
+  return { lat: s.lat / poly.length, lng: s.lng / poly.length }
+}
+
+function TaskPolygonOverlay({ polygon, color, name }: { polygon: LatLng[]; color: string; name: string }) {
+  const map = useMap()
+
+  // Auto-fit bounds to polygon when selected
+  useEffect(() => {
+    if (!map || !polygon.length) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+    const bounds = new g.maps.LatLngBounds()
+    polygon.forEach(p => bounds.extend(p))
+    map.fitBounds(bounds, 80)
+  }, [map, polygon]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Draw fill + border
+  useEffect(() => {
+    if (!map || !polygon.length) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+    const fill = new g.maps.Polygon({
+      paths: polygon,
+      strokeColor: color,
+      strokeOpacity: 1,
+      strokeWeight: 3,
+      fillColor: color,
+      fillOpacity: 0.18,
+      zIndex: 5,
+      clickable: false,
+    })
+    fill.setMap(map)
+    return () => fill.setMap(null)
+  }, [map, polygon, color])
+
+  if (!polygon.length) return null
+  return (
+    <AdvancedMarker position={centroid(polygon)} zIndex={10}>
+      <div style={{
+        background: color,
+        color: 'white',
+        padding: '3px 10px',
+        borderRadius: 20,
+        fontSize: 12,
+        fontWeight: 700,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+      }}>
+        {name}
+      </div>
+    </AdvancedMarker>
+  )
+}
+
 function SectionLabel({
   Icon,
   text,
@@ -109,10 +171,17 @@ function formatDate(value: string | null | undefined): string {
   return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zoneName?: string | null }) {
+export function NewLeadForm({ zoneId, zoneName, routeTasks = [] }: {
+  zoneId?: string | null
+  zoneName?: string | null
+  routeTasks?: FormRouteTask[]
+}) {
   // View state: 'map' | 'form'
   const [view, setView] = useState<'map' | 'form'>('map')
-  
+
+  // Selected route task overlay
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+
   // Map related state
   const [address, setAddress] = useState('')
   const [location, setLocation] = useState(defaultCenter)
@@ -586,18 +655,44 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
         <div className="fixed inset-0 z-0 bg-white flex flex-col">
           {/* 顶部标题栏 */}
-          <div className="bg-gray-900 text-white p-4 z-10 shadow-md flex items-center justify-between">
-            <div className="flex items-center">
-              <MapPin className="text-blue-400 mr-2" size={20} />
-              <span className="font-bold tracking-wide">Select Job Site Location</span>
+          <div className="bg-gray-900 text-white z-10 shadow-md shrink-0">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center">
+                <MapPin className="text-blue-400 mr-2" size={20} />
+                <span className="font-bold tracking-wide">Select Job Site Location</span>
+              </div>
+              <a href="/collector/dashboard" className="text-gray-400 hover:text-white text-sm font-bold">
+                Cancel
+              </a>
             </div>
-            <a href="/collector/dashboard" className="text-gray-400 hover:text-white text-sm font-bold">
-              Cancel
-            </a>
+            {/* Route task chips */}
+            {routeTasks.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto px-4 pb-3" style={{ scrollbarWidth: 'none' }}>
+                {routeTasks.map(task => {
+                  const active = selectedTaskId === task.id
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => setSelectedTaskId(active ? null : task.id)}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border"
+                      style={{
+                        backgroundColor: active ? task.color : 'transparent',
+                        color: active ? 'white' : '#94a3b8',
+                        borderColor: active ? task.color : '#475569',
+                      }}
+                    >
+                      <Route size={11} />
+                      {task.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* 地图区域 */}
           <div className="flex-1 relative">
+
             <Map
               defaultCenter={defaultCenter}
               defaultZoom={13}
@@ -614,8 +709,15 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                   </div>
                 </AdvancedMarker>
               )}
+              {(() => {
+                const task = routeTasks.find(t => t.id === selectedTaskId)
+                if (!task) return null
+                const poly = task.polygon as LatLng[]
+                if (!Array.isArray(poly) || !poly.length) return null
+                return <TaskPolygonOverlay polygon={poly} color={task.color} name={task.name} />
+              })()}
             </Map>
-            
+
             {/* GPS定位按钮 */}
             <button
               onClick={locateAndPin}
@@ -631,7 +733,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
 
           {/* 底部操作区 */}
           <div className="p-6 bg-white border-t border-gray-200 z-10 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-            {/* Route to Start Point Button */}
+            {/* Use current GPS location */}
             {!navigatingToStart && (
               <button
                 onClick={handleRouteToStart}
@@ -640,16 +742,16 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                 {isLocating ? (
                   <Loader2 size={18} className="animate-spin mr-2" />
                 ) : (
-                  <Navigation size={18} className="mr-2" />
+                  <Crosshair size={18} className="mr-2" />
                 )}
-                {isLocating ? 'Finding you...' : 'Route to Start Point'}
+                {isLocating ? 'Finding you...' : 'Use My Current Location'}
               </button>
             )}
-            
-            {/* Navigation Active Indicator */}
+
+            {/* Location pinned indicator */}
             {navigatingToStart && (
               <div className="w-full mb-4 py-3 rounded-xl font-bold bg-green-50 text-green-700 border border-green-200 flex items-center justify-center">
-                <CheckCircle size={18} className="mr-2" /> Navigation Active
+                <CheckCircle size={18} className="mr-2" /> Location Pinned
               </div>
             )}
             
@@ -663,7 +765,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                   <div className="text-xs text-gray-500">
                     {pinDropped
                       ? address.split(',').slice(1).join(',').trim() || 'Tap map to adjust location'
-                      : 'Tap map or search address'}
+                      : 'Tap anywhere on the map to pin a location'}
                   </div>
                 </div>
               </div>
@@ -717,6 +819,7 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
         <input type="hidden" name="initialComment" value={notes} />
         {zoneId && <input type="hidden" name="zoneId" value={zoneId} />}
         {zoneName && <input type="hidden" name="zoneName" value={zoneName} />}
+        {selectedTaskId && <input type="hidden" name="routeTaskId" value={selectedTaskId} />}
         {ocrResult && <input type="hidden" name="ocrData" value={JSON.stringify({ text: ocrResult.text })} />}
         <input type="hidden" name="cityData" value={JSON.stringify({
           permitNum: permitData.permitNum || null,
@@ -1216,10 +1319,10 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                 <Globe size={15} className="text-gray-400 shrink-0" />
                 <input
                   name="website"
-                  type="url"
+                  type="text"
                   value={website}
                   onChange={e => setWebsite(e.target.value)}
-                  placeholder="Website"
+                  placeholder="Website (e.g. example.com)"
                   autoComplete="off"
                   className="w-full p-3 bg-transparent text-base outline-none"
                 />
@@ -1373,9 +1476,9 @@ export function NewLeadForm({ zoneId, zoneName }: { zoneId?: string | null; zone
                   <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 focus-within:ring-1 focus-within:ring-orange-400">
                     <Globe size={15} className="text-gray-400 shrink-0" />
                     <input
-                      type="url"
+                      type="text"
                       className="w-full p-3 bg-transparent text-base outline-none"
-                      placeholder="Website"
+                      placeholder="Website (e.g. example.com)"
                       autoComplete="off"
                       value={s.website}
                       onChange={(e) => updateSupply(i, 'website', e.target.value)}

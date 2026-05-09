@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, MapPin, PlusCircle } from 'lucide-react'
+import { LayoutDashboard, MapPin, PlusCircle, Route } from 'lucide-react'
 
 function isActive(href: string, pathname: string) {
   if (href === '/collector/leads/new') return pathname === href
   if (href === '/collector/leads') {
     return pathname.startsWith('/collector/leads') && pathname !== '/collector/leads/new'
   }
+  if (href === '/collector/routes') return pathname.startsWith('/collector/routes')
   return pathname === href
 }
 
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/collector/dashboard',  label: 'Dashboard', icon: LayoutDashboard },
   { href: '/collector/leads',      label: 'My Leads',  icon: MapPin },
   { href: '/collector/leads/new',  label: 'Add Lead',  icon: PlusCircle },
+  { href: '/collector/routes',     label: 'Routes',    icon: Route },
 ]
 
 export function CollectorSidebarNav() {

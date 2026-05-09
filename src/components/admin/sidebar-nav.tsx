@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Users,
   Settings,
+  Map,
+  Route,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -26,15 +28,17 @@ const navItems: NavItem[] = [
   {
     label: 'Leads', icon: MapPin,
     children: [
+      { href: '/admin/routes',      label: 'Routes',     icon: Route },
       { href: '/admin/evaluation', label: 'Evaluation', icon: ClipboardList },
       { href: '/admin/parking',    label: 'Parking',    icon: Archive },
     ],
   },
-  { href: '/admin/jobs',        label: 'Jobs',       icon: Briefcase },
+  { href: '/admin/jobs',        label: 'Jobs',            icon: Briefcase },
   { href: '/admin/marketing',   label: 'Marketing',       icon: Megaphone },
   { href: '/admin/sales',       label: 'Sales',           icon: TrendingUp },
-  { href: '/admin/users',        label: 'User Management', icon: Users },
-  { href: '/admin/settings',    label: 'Settings',        icon: Settings },
+  { href: '/admin/permits',     label: 'Permits Map',     icon: Map },
+  { href: '/admin/users',       label: 'User Management', icon: Users },
+  { href: '/admin/settings',   label: 'Settings',        icon: Settings },
 ]
 
 export function SidebarNav() {

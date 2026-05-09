@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
-import { Plus, MapPin, AlertTriangle, FileEdit } from 'lucide-react'
+import { Plus, MapPin, AlertTriangle, FileEdit, Route, CheckCircle } from 'lucide-react'
+import { completeRouteTask } from '@/app/actions/route-tasks'
+import { CancelTaskButton } from '@/components/collector/cancel-task-button'
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
@@ -31,7 +33,7 @@ export default async function CollectorDashboardPage() {
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
-  const [total, submitted, underReview, needsFixCount, leads, todayCount, draftLeads, needsFixLeads] = await Promise.all([
+  const [total, submitted, underReview, needsFixCount, leads, todayCount, draftLeads, needsFixLeads, myRoutes] = await Promise.all([
     prisma.lead.count({ where: { createdById: user.id } }),
     prisma.lead.count({ where: { createdById: user.id, status: 'SUBMITTED' as never } }),
     prisma.lead.count({ where: { createdById: user.id, status: 'UNDER_REVIEW' as never } }),
@@ -40,6 +42,22 @@ export default async function CollectorDashboardPage() {
     prisma.lead.count({ where: { createdById: user.id, createdAt: { gte: todayStart } } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'DRAFT' as never }, orderBy: { updatedAt: 'desc' } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'NEEDS_FIX' as never }, orderBy: { updatedAt: 'desc' } }),
+    user.zoneId
+      ? prisma.routeTask.findMany({
+          where: {
+            zoneId: user.zoneId,
+            OR: [
+              { status: 'active', assignedToId: null },
+              { assignedToId: user.id },
+            ],
+          },
+          include: {
+            zone: { select: { name: true } },
+            _count: { select: { leads: { where: { createdById: user.id } } } },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : Promise.resolve([]),
   ])
 
   const draftCount = draftLeads.length
@@ -144,7 +162,7 @@ export default async function CollectorDashboardPage() {
         </div>
       )}
 
-      {/* Stats — 2 cols on mobile, 4 on desktop */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {stats.map((s) => (
           <div key={s.label} className={`${s.cardCls} border rounded-xl p-4 shadow-sm`}>
@@ -153,6 +171,88 @@ export default async function CollectorDashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Route Tasks */}
+      {myRoutes.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Route size={15} className="text-purple-500" />
+            <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">Route Tasks</span>
+          </div>
+          <div className="space-y-2">
+            {myRoutes.map((task) => {
+              const isMyTask = task.assignedToId === user.id
+              const leadCount = task._count.leads
+              const isAvailable = task.status === 'active' && !task.assignedToId
+              const isAssigned = task.status === 'assigned' && isMyTask
+              const isInProgress = task.status === 'in_progress' && isMyTask
+              const isDone = task.status === 'completed' && isMyTask
+
+              return (
+                <div
+                  key={task.id}
+                  className={`rounded-xl px-4 py-3 border ${
+                    isAvailable  ? 'bg-white border-purple-200' :
+                    isAssigned   ? 'bg-purple-50 border-purple-300' :
+                    isInProgress ? 'bg-blue-50 border-blue-300' :
+                    isDone       ? 'bg-green-50 border-green-200 opacity-70' :
+                                   'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        <p className="text-sm font-bold text-gray-900 truncate">{task.name}</p>
+                        {isAvailable  && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Available</span>}
+                        {isAssigned   && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Claimed ✓</span>}
+                        {isInProgress && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">In Progress</span>}
+                        {isDone       && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">Completed ✓</span>}
+                      </div>
+                      <p className="text-xs text-gray-500">Zone: {task.zone.name}</p>
+                      {(isAssigned || isInProgress || isDone) && leadCount > 0 && (
+                        <p className="text-xs font-semibold text-blue-600 mt-0.5">
+                          {leadCount} lead{leadCount !== 1 ? 's' : ''} submitted
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      {/* View Map — always visible */}
+                      {(isAvailable || isAssigned || isInProgress) && (
+                        <Link
+                          href={`/collector/routes/${task.id}`}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                        >
+                          <MapPin size={11} />
+                          View Map
+                        </Link>
+                      )}
+
+                      {/* Claimed + 0 leads: Cancel */}
+                      {isAssigned && leadCount === 0 && (
+                        <CancelTaskButton taskId={task.id} size="sm" />
+                      )}
+
+                      {/* In Progress: Mark Done */}
+                      {isInProgress && (
+                        <form action={completeRouteTask.bind(null, task.id)}>
+                          <button
+                            type="submit"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                          >
+                            <CheckCircle size={11} />
+                            Done
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recent leads */}
       {leads.length === 0 ? (
@@ -179,7 +279,6 @@ export default async function CollectorDashboardPage() {
             </Link>
           </div>
 
-          {/* Mobile card list */}
           <div className="sm:hidden divide-y divide-gray-100">
             {recentLeads.map((lead) => (
               <Link
@@ -203,7 +302,6 @@ export default async function CollectorDashboardPage() {
             ))}
           </div>
 
-          {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

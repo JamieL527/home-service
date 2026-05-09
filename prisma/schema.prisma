@@ -21,6 +21,7 @@ model User {
   zoneId              String?
   contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
   zone                Zone?              @relation(fields: [zoneId], references: [id])
+  assignedTasks       RouteTask[]        @relation("AssignedTasks")
 }
 
 model ContractorCompany {
@@ -76,6 +77,8 @@ model Lead {
   retryCount        Int            @default(0)
   sentimentTag      String?
   zoneId            String?
+  routeTaskId       String?
+  routeTask         RouteTask?     @relation(fields: [routeTaskId], references: [id])
   deals             Deal[]
   jobs              Job[]
   contacts          LeadContact[]
@@ -177,13 +180,30 @@ model Quote {
 }
 
 model Zone {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   name        String
   description String?
   color       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   users       User[]
+  tasks       RouteTask[]
+}
+
+model RouteTask {
+  id           String   @id @default(uuid())
+  name         String
+  polygon      Json
+  color        String   @default("#8b5cf6")
+  zoneId       String
+  zone         Zone     @relation(fields: [zoneId], references: [id])
+  createdById  String
+  assignedToId String?
+  assignedTo   User?    @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  leads        Lead[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -220,6 +240,8 @@ model permits {
   interior_alterations           Decimal?  @db.Decimal
   demolition                     Decimal?  @db.Decimal
   builder_name                   String?
+  lat                            Float?
+  lng                            Float?
 
   @@index([application_date], map: "idx_permits_application_date")
   @@index([permit_type], map: "idx_permits_permit_type")

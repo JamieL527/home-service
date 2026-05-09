@@ -33,7 +33,7 @@ const PHASE_FULL_NAMES: Record<string, string> = {
 const PHASE_TAB_COLORS: Record<string, { inactive: string; active: string }> = {
   P0:  { inactive: 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-200',   active: 'bg-blue-500 text-white border-blue-500' },
   P1:  { inactive: 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-200',           active: 'bg-sky-500 text-white border-sky-500' },
-  P2:  { inactive: 'bg-purple-50 text-purple-600 border-purple-300 hover:bg-purple-200',       active: 'bg-puple-500 text-white border-puple-500' },
+  P2:  { inactive: 'bg-purple-50 text-purple-600 border-purple-300 hover:bg-purple-200',       active: 'bg-purple-500 text-white border-purple-500' },
   P3:  { inactive: 'bg-red-50 text-red-800 border-red-300 hover:bg-red-200',           active: 'bg-red-500 text-white border-red-500' },
   P4:  { inactive: 'bg-orange-50 text-orange-800 border-orange-300 hover:bg-orange-200', active: 'bg-orange-600 text-white border-orange-600' },
   P5:  { inactive: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-200',       active: 'bg-amber-600 text-white border-amber-600' },

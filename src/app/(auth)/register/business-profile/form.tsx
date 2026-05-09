@@ -125,8 +125,7 @@ export function BusinessProfileForm({
                 id="website"
                 label="Website"
                 name="website"
-                type="url"
-                placeholder="https://yourcompany.com"
+                placeholder="e.g. example.com or https://example.com"
                 defaultValue={initialValues?.website}
               />
               <div className="space-y-1.5">

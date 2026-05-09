@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MapPin, PlusCircle } from 'lucide-react'
+import { LayoutDashboard, MapPin, PlusCircle, Route } from 'lucide-react'
 
 const navItems = [
   { href: '/collector/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/collector/leads',     label: 'My Leads',  icon: MapPin },
   { href: '/collector/leads/new', label: 'Add Lead',  icon: PlusCircle },
+  { href: '/collector/routes',    label: 'Routes',    icon: Route },
 ]
 
 function isActive(href: string, pathname: string) {
@@ -15,6 +16,7 @@ function isActive(href: string, pathname: string) {
   if (href === '/collector/leads') {
     return pathname.startsWith('/collector/leads') && pathname !== '/collector/leads/new'
   }
+  if (href === '/collector/routes') return pathname.startsWith('/collector/routes')
   return pathname === href
 }
 

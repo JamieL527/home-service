@@ -77,6 +77,11 @@ export async function login(
     redirect('/contractor/overview')
   }
 
+  if (user.userStatus === 'suspended' || user.userStatus === 'deactivated') {
+    await supabase.auth.signOut()
+    return { error: 'Your account has been suspended or deactivated. Please contact an administrator.' }
+  }
+
   const cookieStore = await cookies()
   cookieStore.set('user-role', user.role, {
     httpOnly: true,

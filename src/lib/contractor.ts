@@ -31,7 +31,11 @@ export async function requireContractorUser() {
   }
   if (status === 'REJECTED') {
     await supabase.auth.signOut()
-    redirect('/login')
+    redirect('/login?error=account_rejected')
+  }
+  if (status === 'SUSPENDED') {
+    await supabase.auth.signOut()
+    redirect('/login?error=account_suspended')
   }
 
   return {

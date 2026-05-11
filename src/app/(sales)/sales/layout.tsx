@@ -2,8 +2,10 @@ import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import { SalesSidebarNav } from '@/components/sales/sidebar-nav'
 import { SalesBottomNav } from '@/components/sales/bottom-nav'
+import { requireInternalUser } from '@/lib/internal'
 
-export default function SalesLayout({ children }: { children: React.ReactNode }) {
+export default async function SalesLayout({ children }: { children: React.ReactNode }) {
+  await requireInternalUser()
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden sm:flex sm:w-56 sm:shrink-0 sm:flex-col border-r border-white/10 bg-[#1a2e4a]">

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { approveContractor, rejectContractor, requestMoreInfo, deleteContractor } from '@/app/actions/admin'
+import { approveContractor, rejectContractor, requestMoreInfo, deleteContractor, suspendContractor, unsuspendContractor } from '@/app/actions/admin'
 
 type Company = {
   id: string
@@ -40,6 +40,8 @@ export function ContractorReviewModal({ company }: { company: Company }) {
   const router = useRouter()
 
   const canAct = company.status === 'PENDING_APPROVAL' || company.status === 'ACTION_REQUIRED'
+  const isActive    = company.status === 'ACTIVE'
+  const isSuspended = company.status === 'SUSPENDED'
 
   function close() {
     setOpen(false)
@@ -79,6 +81,22 @@ export function ContractorReviewModal({ company }: { company: Company }) {
     })
   }
 
+  function handleSuspend() {
+    startTransition(async () => {
+      await suspendContractor(company.id)
+      close()
+      router.refresh()
+    })
+  }
+
+  function handleUnsuspend() {
+    startTransition(async () => {
+      await unsuspendContractor(company.id)
+      close()
+      router.refresh()
+    })
+  }
+
   return (
     <>
       <button
@@ -104,6 +122,11 @@ export function ContractorReviewModal({ company }: { company: Company }) {
                   {company.status === 'ACTION_REQUIRED' && (
                     <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                       Action Required
+                    </span>
+                  )}
+                  {isSuspended && (
+                    <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                      Suspended
                     </span>
                   )}
                 </div>
@@ -258,9 +281,29 @@ export function ContractorReviewModal({ company }: { company: Company }) {
                       Reject
                     </button>
                   </>
+                ) : isSuspended ? (
+                  <button
+                    disabled={pending}
+                    onClick={handleUnsuspend}
+                    className="px-4 py-2 text-sm font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40"
+                  >
+                    {pending ? 'Reactivating…' : 'Reactivate'}
+                  </button>
                 ) : (
                   <button onClick={close} className="text-sm text-gray-500 hover:text-gray-700">
                     Close
+                  </button>
+                )}
+                {isActive && (
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      if (!confirm(`Suspend "${company.name}"? They will lose access immediately.`)) return
+                      handleSuspend()
+                    }}
+                    className="px-4 py-2 text-sm font-bold bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 disabled:opacity-40"
+                  >
+                    Suspend
                   </button>
                 )}
                 <button

@@ -14,7 +14,10 @@ export default async function AdminMarketingPage({
 
   const allLeads = await prisma.lead.findMany({
     where: { status: { in: MARKETING_STATUSES } },
-    include: { contacts: true },
+    include: {
+      contacts: true,
+      assignedMarketing: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
     orderBy: { updatedAt: 'asc' },
   })
 
@@ -26,6 +29,7 @@ export default async function AdminMarketingPage({
     <InboxBoard
       tab={tab}
       allLeads={allLeads}
+      currentUserId={null}
       newCount={newCount}
       reactivatedCount={reactivatedCount}
       errorCount={errorCount}

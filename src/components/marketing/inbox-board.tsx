@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/marketing'
 
 type LeadContact = { name: string | null; phone: string | null; email: string | null }
+type AssignedUser = { id: string; firstName: string | null; lastName: string | null; email: string } | null
 type Lead = {
   id: string
   address: string
@@ -25,6 +26,7 @@ type Lead = {
   updatedAt: Date
   createdAt: Date
   contacts: LeadContact[]
+  assignedMarketing: AssignedUser
 }
 
 // "To Contact" column maps to MARKETING_INBOX status
@@ -86,6 +88,11 @@ function tagStyle(tag: string | null) {
   return 'bg-gray-100 text-gray-600'
 }
 
+function assigneeName(u: NonNullable<AssignedUser>): string {
+  const full = [u.firstName, u.lastName].filter(Boolean).join(' ')
+  return full || u.email
+}
+
 function relativeTime(date: Date): string {
   const h = Math.floor((Date.now() - new Date(date).getTime()) / 3_600_000)
   if (h < 1) return '<1h ago'
@@ -129,7 +136,14 @@ function LeadCard({
 
       {/* Contact name */}
       {contact?.name && (
-        <p className="text-xs text-gray-500 mb-2 truncate">{contact.name}</p>
+        <p className="text-xs text-gray-500 mb-1 truncate">{contact.name}</p>
+      )}
+
+      {/* Assignee */}
+      {lead.assignedMarketing && (
+        <p className="text-[10px] font-semibold text-indigo-500 mb-1 truncate">
+          Assigned: {assigneeName(lead.assignedMarketing)}
+        </p>
       )}
 
       {/* Meta row */}
@@ -183,6 +197,9 @@ function DetailPanel({
   const [followUpInput, setFollowUpInput] = useState(
     lead.nextFollowUpDate ? new Date(lead.nextFollowUpDate).toISOString().slice(0, 10) : ''
   )
+  const [parkOpen, setParkOpen] = useState(false)
+  const [parkReason, setParkReason] = useState('')
+  const [parkReInjectDate, setParkReInjectDate] = useState('')
   const router = useRouter()
 
   function act(fn: () => Promise<void>) {
@@ -220,6 +237,11 @@ function DetailPanel({
           <span className={`inline-block mt-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${tagStyle(lead.marketingTag)}`}>
             {lead.marketingTag || 'NEW'}
           </span>
+          {lead.assignedMarketing && (
+            <p className="text-[10px] font-semibold text-indigo-500 mt-1">
+              Assigned: {assigneeName(lead.assignedMarketing)}
+            </p>
+          )}
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0">
           <X size={15} className="text-gray-400" />
@@ -373,20 +395,88 @@ function DetailPanel({
             {btn('Contact Established', 'bg-green-600 text-white hover:bg-green-700', () =>
               markContactEstablished(lead.id)
             )}
-            {btn('No Need / Park', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () =>
-              parkLeadMarketing(lead.id)
-            )}
+            <button
+              disabled={pending}
+              onClick={() => { setParkOpen(true); setParkReason(''); setParkReInjectDate('') }}
+              className="w-full py-2 text-sm font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-40"
+            >
+              No Need / Park
+            </button>
           </>
         )}
         {status === 'NO_RESPONSE' && (
           <>
-            {btn('Retry Contact', 'bg-blue-100 text-blue-700 hover:bg-blue-200', () =>
-              retryContact(lead.id)
-            )}
-            {btn('No Need / Park', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () =>
-              parkLeadMarketing(lead.id)
-            )}
+            {lead.retryCount < 3
+              ? btn('Retry Contact', 'bg-blue-100 text-blue-700 hover:bg-blue-200', () =>
+                  retryContact(lead.id)
+                )
+              : (
+                <div className="w-full py-2 text-center text-xs font-bold text-red-400 bg-red-50 rounded-lg border border-red-100">
+                  Max retries reached ({lead.retryCount}/3)
+                </div>
+              )
+            }
+            <button
+              disabled={pending}
+              onClick={() => { setParkOpen(true); setParkReason(''); setParkReInjectDate('') }}
+              className="w-full py-2 text-sm font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-40"
+            >
+              No Need / Park
+            </button>
           </>
+        )}
+
+        {/* No Need modal */}
+        {parkOpen && (
+          <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 shadow-2xl w-80">
+              <h3 className="text-sm font-black text-gray-900 mb-1">No Need / Park</h3>
+              <p className="text-xs text-gray-400 mb-4">Admin will see this note in Parking and can re-inject on the scheduled date.</p>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                Reason <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={parkReason}
+                onChange={(e) => setParkReason(e.target.value)}
+                placeholder="e.g. Client said no budget, not interested, wrong timing…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none mb-3"
+                autoFocus
+              />
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                Suggested Re-inject Date <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={parkReInjectDate}
+                onChange={(e) => setParkReInjectDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 mb-4"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setParkOpen(false)}
+                  className="flex-1 px-3 py-2 text-xs font-bold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!parkReason.trim() || !parkReInjectDate || pending}
+                  onClick={() => {
+                    act(() => parkLeadMarketing(
+                      lead.id,
+                      parkReason.trim(),
+                      new Date(parkReInjectDate + 'T12:00:00'),
+                    ))
+                    setParkOpen(false)
+                  }}
+                  className="flex-1 px-3 py-2 text-xs font-bold text-white bg-gray-700 rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {status === 'CONTACT_ESTABLISHED' &&
           btn(
@@ -402,6 +492,7 @@ function DetailPanel({
 export function InboxBoard({
   tab,
   allLeads,
+  currentUserId,
   newCount,
   reactivatedCount,
   errorCount,
@@ -409,16 +500,20 @@ export function InboxBoard({
 }: {
   tab: string
   allLeads: Lead[]
+  currentUserId: string | null
   newCount: number
   reactivatedCount: number
   errorCount: number
   basePath?: string
 }) {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
+  const [myOnly, setMyOnly] = useState(false)
 
-  // Filter leads by the active tab's marketingTag
+  // Filter leads by the active tab's marketingTag, then optionally by assignee
   const activeTag = TAB_TAG[tab] ?? 'NEW'
-  const filteredLeads = allLeads.filter((l) => l.marketingTag === activeTag)
+  const filteredLeads = allLeads
+    .filter((l) => l.marketingTag === activeTag)
+    .filter((l) => !myOnly || l.assignedMarketing?.id === currentUserId)
 
   const selectedLead = filteredLeads.find((l) => l.id === selectedLeadId) ?? null
   const selectedGlobalIndex = filteredLeads.findIndex((l) => l.id === selectedLeadId)
@@ -436,6 +531,26 @@ export function InboxBoard({
             <p className="text-xs text-gray-400 mt-0.5">Construction pipeline management</p>
           </div>
           <div className="flex items-center gap-2">
+            {currentUserId && (
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-bold">
+                <button
+                  onClick={() => setMyOnly(false)}
+                  className={`px-3 py-1.5 transition-colors ${
+                    !myOnly ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setMyOnly(true)}
+                  className={`px-3 py-1.5 border-l border-gray-200 transition-colors ${
+                    myOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  Mine
+                </button>
+              </div>
+            )}
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-blue-500 text-blue-600 rounded-lg">
               <Bell size={14} />
               Inbox

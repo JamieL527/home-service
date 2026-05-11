@@ -39,14 +39,19 @@ export default async function ParkingPage({
 }) {
   const { phase: phaseFilter } = await searchParams
 
-  const [parkedLeads, injectedCount] = await Promise.all([
+  const [parkedLeads, injectedCount, allUsers] = await Promise.all([
     prisma.lead.findMany({
       where: { status: 'PARKED' as never },
       orderBy: { updatedAt: 'desc' },
       include: { contacts: true },
     }),
     prisma.lead.count({ where: { status: 'INJECTED' as never } }),
+    prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, role: true } }),
   ])
+
+  const marketingUsers = allUsers
+    .filter((u) => u.role === 'MARKETING' || u.role === 'ADMIN')
+    .map((u) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.id }))
 
   const totalAll = parkedLeads.length
   const urgentCount = parkedLeads.filter((l) => l.isUrgent).length
@@ -77,6 +82,7 @@ export default async function ParkingPage({
       businessName: lead.businessName,
       phase: lead.phase,
       initialComment: lead.initialComment,
+      marketingNote: lead.marketingNote,
       scheduledInjectAt: lead.scheduledInjectAt?.toISOString() ?? null,
       contacts: lead.contacts.map((c) => ({ id: c.id, name: c.name, phone: c.phone })),
     }
@@ -142,7 +148,7 @@ export default async function ParkingPage({
             ) : (
               <div className="bg-white divide-y divide-gray-100">
                 {readyLeads.map((lead) => (
-                  <InjectionQueueCard key={lead.id} lead={serializeLead(lead)} />
+                  <InjectionQueueCard key={lead.id} lead={serializeLead(lead)} marketingUsers={marketingUsers} />
                 ))}
               </div>
             )}
@@ -163,7 +169,7 @@ export default async function ParkingPage({
             ) : (
               <div className="bg-white divide-y divide-gray-100">
                 {futureScheduledLeads.map((lead) => (
-                  <InjectionQueueCard key={lead.id} lead={serializeLead(lead)} />
+                  <InjectionQueueCard key={lead.id} lead={serializeLead(lead)} marketingUsers={marketingUsers} />
                 ))}
               </div>
             )}
@@ -236,6 +242,12 @@ export default async function ParkingPage({
                         {lead.businessName && (
                           <p className="text-[10px] text-gray-500 mb-1.5 truncate">{lead.businessName}</p>
                         )}
+                        {lead.marketingNote && (
+                          <div className="mb-2 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                            <p className="text-[10px] font-bold text-blue-500 mb-0.5">Marketing</p>
+                            <p className="text-[10px] text-blue-700 leading-snug line-clamp-2">{lead.marketingNote}</p>
+                          </div>
+                        )}
                         {lead.initialComment && (
                           <div className="mb-2 bg-amber-50 border border-amber-100 rounded px-2 py-1">
                             <p className="text-[10px] text-amber-700 leading-snug line-clamp-2">{lead.initialComment}</p>
@@ -257,6 +269,8 @@ export default async function ParkingPage({
                           variant="parking-board"
                           leadPhase={lead.phase}
                           detailHref={`/admin/leads/${lead.id}`}
+                          marketingUsers={marketingUsers}
+                          leadAddress={lead.address}
                         />
                       </div>
                     )

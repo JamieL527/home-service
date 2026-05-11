@@ -66,10 +66,13 @@ export default async function EvaluationPage({
       orderBy: { createdAt: 'desc' },
       include: { contacts: true },
     }),
-    prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, email: true } }),
+    prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, email: true, role: true } }),
   ])
 
   const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]))
+  const marketingUsers = allUsers
+    .filter(u => u.role === 'MARKETING' || u.role === 'ADMIN')
+    .map(u => ({ id: u.id, name: u.firstName || u.lastName ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() : u.email }))
 
   // Per-phase counts for filter tabs
   const phaseCountMap: Record<string, { total: number; urgent: number }> = {}
@@ -216,6 +219,8 @@ export default async function EvaluationPage({
                     leadId={lead.id}
                     variant="evaluation-urgent"
                     leadPhase={lead.phase}
+                    leadAddress={lead.address}
+                    marketingUsers={marketingUsers}
                     detailHref={`/admin/leads/${lead.id}`}
                   />
                 </div>
@@ -292,6 +297,8 @@ export default async function EvaluationPage({
                             leadId={lead.id}
                             variant="evaluation-backed"
                             leadPhase={lead.phase}
+                            leadAddress={lead.address}
+                            marketingUsers={marketingUsers}
                             detailHref={`/admin/leads/${lead.id}`}
                           />
                         </div>
@@ -427,6 +434,8 @@ export default async function EvaluationPage({
                                   leadId={lead.id}
                                   variant="evaluation-new"
                                   leadPhase={lead.phase}
+                                  leadAddress={lead.address}
+                                  marketingUsers={marketingUsers}
                                   detailHref={`/admin/leads/${lead.id}`}
                                 />
                                 <NeedsFixButton leadId={lead.id} />

@@ -6,6 +6,28 @@ import { sendQuoteEmail } from '@/lib/email'
 
 const STAGE_ORDER = ['NEW_OPPORTUNITY', 'DISCOVERY', 'ESTIMATION', 'QUOTE_SENT', 'NEGOTIATION']
 
+async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ description: string; quantity: number; unitPrice: number }>, subtotal: number, tax: number, total: number, notes?: string | null, version?: number) {
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    include: { lead: { include: { contacts: true } } },
+  })
+  if (!deal) return
+  const contactEmail = deal.lead.contacts.find(c => c.email)?.email
+  const toEmail = contactEmail || process.env.RESEND_TO_OVERRIDE || ''
+  if (!toEmail) return
+  await sendQuoteEmail({
+    to: toEmail,
+    projectName: deal.projectName || deal.lead.address,
+    clientName: deal.clientName || deal.lead.contacts[0]?.name || 'Valued Client',
+    quoteVersion: version ?? 1,
+    lineItems,
+    subtotal,
+    tax,
+    total,
+    notes,
+  }).catch(err => console.error('Failed to send quote email:', err))
+}
+
 function getNextStage(current: string): string | null {
   const idx = STAGE_ORDER.indexOf(current)
   if (idx === -1 || idx === STAGE_ORDER.length - 1) return null
@@ -117,6 +139,9 @@ export async function createQuote(
       submittedAt: data.submit ? new Date() : null,
     },
   })
+  if (data.submit) {
+    await maybeSendQuoteEmail(dealId, data.lineItems, data.subtotal, data.tax, data.total, data.notes, version)
+  }
   revalidatePath(`/sales/deals/${dealId}`)
 }
 
@@ -132,7 +157,7 @@ export async function updateQuote(
     submit: boolean
   },
 ) {
-  await prisma.quote.update({
+  const quote = await prisma.quote.update({
     where: { id: quoteId },
     data: {
       lineItems: data.lineItems,
@@ -144,54 +169,38 @@ export async function updateQuote(
       submittedAt: data.submit ? new Date() : null,
     },
   })
+  if (data.submit) {
+    await maybeSendQuoteEmail(dealId, data.lineItems, data.subtotal, data.tax, data.total, data.notes, quote.version)
+  }
   revalidatePath(`/sales/deals/${dealId}`)
 }
 
 export async function submitDraftQuote(quoteId: string, dealId: string) {
-  const [quote, deal] = await Promise.all([
-    prisma.quote.findUnique({ where: { id: quoteId } }),
-    prisma.deal.findUnique({
-      where: { id: dealId },
-      include: { lead: { include: { contacts: true } } },
-    }),
-  ])
-
-  if (!quote || !deal) return
+  const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
+  if (!quote) return
 
   await prisma.quote.update({
     where: { id: quoteId },
     data: { status: 'submitted', submittedAt: new Date() },
   })
 
-  // Find a contact email — fall back to RESEND_TO_OVERRIDE if none on the lead
-  const contactEmail = deal.lead.contacts.find(c => c.email)?.email
-  const toEmail = contactEmail || process.env.RESEND_TO_OVERRIDE || ''
-
-  if (toEmail) {
-    const lineItems = (quote.lineItems as Array<{ description: string; quantity: number; unitPrice: number }>) ?? []
-    await sendQuoteEmail({
-      to: toEmail,
-      projectName: deal.projectName || deal.lead.address,
-      clientName: deal.clientName || deal.lead.contacts[0]?.name || 'Valued Client',
-      quoteVersion: quote.version,
-      lineItems,
-      subtotal: quote.subtotal ?? 0,
-      tax: quote.tax ?? 0,
-      total: quote.total ?? 0,
-      notes: quote.notes,
-    }).catch(err => {
-      // don't block the status update if email fails
-      console.error('Failed to send quote email:', err)
-    })
-  }
+  const lineItems = (quote.lineItems as Array<{ description: string; quantity: number; unitPrice: number }>) ?? []
+  await maybeSendQuoteEmail(dealId, lineItems, quote.subtotal ?? 0, quote.tax ?? 0, quote.total ?? 0, quote.notes, quote.version)
 
   revalidatePath(`/sales/deals/${dealId}`)
 }
 
 export async function acceptQuote(quoteId: string, dealId: string) {
-  await prisma.quote.update({
+  const quote = await prisma.quote.update({
     where: { id: quoteId },
     data: { status: 'accepted' },
   })
+  if (quote.total != null) {
+    await prisma.deal.update({
+      where: { id: dealId },
+      data: { estimatedValue: quote.total },
+    })
+  }
   revalidatePath(`/sales/deals/${dealId}`)
+  revalidatePath(`/admin/sales/deals/${dealId}`)
 }

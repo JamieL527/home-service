@@ -13,6 +13,7 @@ model User {
   id                  String             @id @default(uuid())
   email               String             @unique
   role                Role
+  userStatus          String             @default("active")
   contractorCompanyId String?
   createdAt           DateTime           @default(now())
   firstName           String?
@@ -21,7 +22,9 @@ model User {
   zoneId              String?
   contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
   zone                Zone?              @relation(fields: [zoneId], references: [id])
-  assignedTasks       RouteTask[]        @relation("AssignedTasks")
+  assignedTasks         RouteTask[]        @relation("AssignedTasks")
+  dealComments          DealComment[]
+  assignedMarketingLeads Lead[]            @relation("AssignedMarketingLeads")
 }
 
 model ContractorCompany {
@@ -76,13 +79,15 @@ model Lead {
   nextFollowUpDate  DateTime?
   retryCount        Int            @default(0)
   sentimentTag      String?
-  zoneId            String?
-  routeTaskId       String?
-  routeTask         RouteTask?     @relation(fields: [routeTaskId], references: [id])
-  deals             Deal[]
-  jobs              Job[]
-  contacts          LeadContact[]
-  suppliers         LeadSupplier[]
+  zoneId               String?
+  routeTaskId          String?
+  assignedMarketingId  String?
+  routeTask            RouteTask?     @relation(fields: [routeTaskId], references: [id])
+  assignedMarketing    User?          @relation("AssignedMarketingLeads", fields: [assignedMarketingId], references: [id])
+  deals                Deal[]
+  jobs                 Job[]
+  contacts             LeadContact[]
+  suppliers            LeadSupplier[]
 }
 
 model LeadSupplier {
@@ -143,12 +148,12 @@ model JobOffer {
 }
 
 model Deal {
-  id              String    @id @default(uuid())
+  id              String            @id @default(uuid())
   leadId          String
-  status          String    @default("active")
-  createdAt       DateTime  @default(now())
+  status          String            @default("active")
+  createdAt       DateTime          @default(now())
   clientName      String?
-  currentStage    String    @default("NEW_OPPORTUNITY")
+  currentStage    String            @default("NEW_OPPORTUNITY")
   deadline        DateTime?
   estimatedValue  Float?
   lossReason      String?
@@ -159,9 +164,45 @@ model Deal {
   projectName     String?
   projectType     String?
   siteVisitDate   DateTime?
-  updatedAt       DateTime  @updatedAt
-  lead            Lead      @relation(fields: [leadId], references: [id])
+  updatedAt       DateTime          @updatedAt
+  lead            Lead              @relation(fields: [leadId], references: [id])
   quotes          Quote[]
+  plans           DealPlan[]
+  measurements    DealMeasurement[]
+  comments        DealComment[]
+}
+
+model DealPlan {
+  id        String   @id @default(uuid())
+  dealId    String
+  name      String
+  planType  String
+  fileUrl   String
+  fileType  String
+  createdAt DateTime @default(now())
+  deal      Deal     @relation(fields: [dealId], references: [id])
+}
+
+model DealMeasurement {
+  id        String   @id @default(uuid())
+  dealId    String
+  label     String
+  type      String
+  value     Float
+  unit      String
+  notes     String?
+  createdAt DateTime @default(now())
+  deal      Deal     @relation(fields: [dealId], references: [id])
+}
+
+model DealComment {
+  id        String   @id @default(uuid())
+  dealId    String
+  content   String
+  authorId  String
+  createdAt DateTime @default(now())
+  deal      Deal     @relation(fields: [dealId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
 }
 
 model Quote {
@@ -278,6 +319,7 @@ enum LeadStatus {
   CONTACTING
   NO_RESPONSE
   CONTACT_ESTABLISHED
+  CLOSED
 }
 
 enum JobStatus {
@@ -297,4 +339,5 @@ enum ContractorCompanyStatus {
   ACTIVE
   REJECTED
   ACTION_REQUIRED
+  SUSPENDED
 }

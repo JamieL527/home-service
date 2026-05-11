@@ -15,6 +15,8 @@ export default async function AdminDealDetailPage({ params }: { params: Promise<
           phase: true,
           contacts: true,
           businessName: true,
+          initialComment: true,
+          marketingNote: true,
         },
       },
       quotes: { orderBy: { version: 'desc' } },

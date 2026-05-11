@@ -3,28 +3,29 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 
-export async function injectLead(leadId: string, targetPhase?: string) {
+export async function injectLead(leadId: string, targetPhase?: string, assignedMarketingId?: string) {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } })
   if (!lead) return
   const phase = targetPhase ?? lead.phase
   const currentStatus = lead.status as string
 
-  // Determine marketingTag based on how this lead arrived at injection
   let marketingTag: string
   if (currentStatus === 'RESUBMITTED') {
-    // Lead went through NEEDS_FIX → RESUBMITTED cycle before being injected
     marketingTag = 'FIXED'
   } else if (currentStatus === 'PARKED' || currentStatus === 'SCHEDULED' || lead.scheduledInjectAt) {
-    // Lead was parked/scheduled, re-entering the pipeline
     marketingTag = 'RE-ACTIVATED'
   } else {
-    // Fresh injection from evaluation
     marketingTag = 'NEW'
   }
 
   await prisma.lead.update({
     where: { id: leadId },
-    data: { status: 'MARKETING_INBOX' as never, phase, marketingTag },
+    data: {
+      status: 'MARKETING_INBOX' as never,
+      phase,
+      marketingTag,
+      assignedMarketingId: assignedMarketingId ?? null,
+    },
   })
   revalidatePath('/admin/evaluation')
   revalidatePath('/admin/parking')
@@ -76,6 +77,11 @@ export async function scheduleLeadInjection(leadId: string, date: Date) {
 
 export async function cancelLeadSchedule(leadId: string) {
   await prisma.lead.update({ where: { id: leadId }, data: { scheduledInjectAt: null } })
+  revalidatePath('/admin/parking')
+}
+
+export async function closeLead(leadId: string) {
+  await prisma.lead.update({ where: { id: leadId }, data: { status: 'CLOSED' as never } })
   revalidatePath('/admin/parking')
 }
 

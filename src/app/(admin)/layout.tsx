@@ -2,8 +2,10 @@ import { SidebarNav } from '@/components/admin/sidebar-nav'
 import { AdminMobileNav } from '@/components/admin/mobile-nav'
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
+import { requireInternalUser } from '@/lib/internal'
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  await requireInternalUser()
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden sm:flex sm:w-56 sm:shrink-0 sm:flex-col bg-[#1a2e4a]">

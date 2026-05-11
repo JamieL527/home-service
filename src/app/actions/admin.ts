@@ -142,6 +142,47 @@ export async function deleteUser(userId: string) {
   revalidatePath('/admin/users')
 }
 
+export async function suspendInternalUser(userId: string) {
+  await prisma.user.update({ where: { id: userId }, data: { userStatus: 'suspended' } })
+  revalidatePath('/admin/users')
+}
+
+export async function reactivateInternalUser(userId: string) {
+  await prisma.user.update({ where: { id: userId }, data: { userStatus: 'active' } })
+  revalidatePath('/admin/users')
+}
+
+export async function deactivateInternalUser(userId: string) {
+  await prisma.user.update({ where: { id: userId }, data: { userStatus: 'deactivated' } })
+  revalidatePath('/admin/users')
+}
+
+export async function changeUserRole(userId: string, role: string) {
+  const validRoles = ['ADMIN', 'SALES', 'MARKETING', 'DATA_COLLECTOR']
+  if (!validRoles.includes(role)) return
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: role as never },
+  })
+  revalidatePath('/admin/users')
+}
+
+export async function suspendContractor(companyId: string) {
+  await prisma.contractorCompany.update({
+    where: { id: companyId },
+    data: { status: 'SUSPENDED' },
+  })
+  revalidatePath('/admin/users')
+}
+
+export async function unsuspendContractor(companyId: string) {
+  await prisma.contractorCompany.update({
+    where: { id: companyId },
+    data: { status: 'ACTIVE' },
+  })
+  revalidatePath('/admin/users')
+}
+
 export async function deleteContractor(companyId: string) {
   const company = await prisma.contractorCompany.findUnique({
     where: { id: companyId },

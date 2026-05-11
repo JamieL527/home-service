@@ -1,12 +1,20 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 
+const URL_ERRORS: Record<string, string> = {
+  account_suspended: 'Your account has been suspended. Please contact an administrator.',
+  account_rejected:  'Your account has been rejected. Please contact support.',
+}
+
 export default function LoginPage() {
   const [state, action, isPending] = useActionState(login, null)
+  const searchParams = useSearchParams()
+  const urlError = URL_ERRORS[searchParams.get('error') ?? '']
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -55,9 +63,9 @@ export default function LoginPage() {
             />
           </div>
 
-          {state?.error && (
+          {(urlError || state?.error) && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {state.error}
+              {urlError ?? state?.error}
             </p>
           )}
 

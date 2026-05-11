@@ -64,6 +64,7 @@ const SUB_TABS = [
   { key: 'PENDING_APPROVAL', label: 'Pending Approval' },
   { key: 'ACTIVE',           label: 'Active' },
   { key: 'ACTION_REQUIRED',  label: 'Action Required' },
+  { key: 'SUSPENDED',        label: 'Suspended' },
   { key: 'REJECTED',         label: 'Rejected' },
 ]
 
@@ -125,13 +126,20 @@ async function InternalUsersTab() {
               const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
               const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
               const roleLabel = ROLE_LABELS[user.role] ?? user.role
+              const statusDot = user.userStatus === 'suspended' ? 'bg-amber-400' : user.userStatus === 'deactivated' ? 'bg-gray-300' : 'bg-green-500'
               return (
-                <div key={user.id} className="px-4 py-3 flex items-center gap-3">
+                <div key={user.id} className={`px-4 py-3 flex items-center gap-3 ${user.userStatus !== 'active' ? 'opacity-60' : ''}`}>
                   <Avatar name={name} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot} shrink-0`} />
                       <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                      {user.userStatus === 'suspended' && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full shrink-0">Suspended</span>
+                      )}
+                      {user.userStatus === 'deactivated' && (
+                        <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full shrink-0">Deactivated</span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 truncate">{user.email}</p>
                     <div className="flex items-center gap-2 mt-1.5">
@@ -141,7 +149,7 @@ async function InternalUsersTab() {
                       <span className="text-[11px] text-gray-400">{relativeTime(user.createdAt)}</span>
                     </div>
                   </div>
-                  <InternalUserMenu userId={user.id} name={name} />
+                  <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} />
                 </div>
               )
             })}
@@ -157,7 +165,7 @@ async function InternalUsersTab() {
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Name</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Joined</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -165,15 +173,22 @@ async function InternalUsersTab() {
                 const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
                 const roleColor = ROLE_COLORS[user.role] ?? 'bg-gray-100 text-gray-600'
                 const roleLabel = ROLE_LABELS[user.role] ?? user.role
+                const statusDot = user.userStatus === 'suspended' ? 'bg-amber-400' : user.userStatus === 'deactivated' ? 'bg-gray-300' : 'bg-green-500'
                 return (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={user.id} className={`hover:bg-gray-50 transition-colors ${user.userStatus !== 'active' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar name={name} />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusDot} shrink-0`} />
                             <p className="font-medium text-gray-900 truncate">{name}</p>
+                            {user.userStatus === 'suspended' && (
+                              <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full shrink-0">Suspended</span>
+                            )}
+                            {user.userStatus === 'deactivated' && (
+                              <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full shrink-0">Deactivated</span>
+                            )}
                           </div>
                           <p className="text-xs text-gray-400 truncate">{user.email}</p>
                         </div>
@@ -188,7 +203,9 @@ async function InternalUsersTab() {
                       {relativeTime(user.createdAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <InternalUserMenu userId={user.id} name={name} />
+                      <div className="flex justify-center">
+                        <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} />
+                      </div>
                     </td>
                   </tr>
                 )
@@ -428,7 +445,7 @@ async function InvitationsTab() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {!accepted && <ResendInviteButton email={user.email} />}
-                    <InternalUserMenu userId={user.id} name={name || user.email} />
+                    <InternalUserMenu userId={user.id} name={name || user.email} userStatus={user.userStatus} userRole={user.role} />
                   </div>
                 </div>
               )
@@ -446,7 +463,7 @@ async function InvitationsTab() {
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Sent</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -479,9 +496,9 @@ async function InvitationsTab() {
                       }
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex justify-center items-center gap-1.5">
                         {!accepted && <ResendInviteButton email={user.email} />}
-                        <InternalUserMenu userId={user.id} name={name || user.email} />
+                        <InternalUserMenu userId={user.id} name={name || user.email} userStatus={user.userStatus} userRole={user.role} />
                       </div>
                     </td>
                   </tr>

@@ -15,6 +15,8 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
           phase: true,
           contacts: true,
           businessName: true,
+          initialComment: true,
+          marketingNote: true,
         },
       },
       quotes: { orderBy: { version: 'desc' } },

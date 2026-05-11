@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Phone, X, Calendar } from 'lucide-react'
 import {
-  injectLead, scheduleLeadInjection, cancelLeadSchedule, moveLeadPhase,
+  injectLead, scheduleLeadInjection, cancelLeadSchedule, moveLeadPhase, unParkLead, closeLead,
 } from '@/app/actions/leads-admin'
+import type { MarketingUser } from '@/components/admin/lead-action-buttons'
 
 const PHASES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'MLS']
 const PHASE_FULL_NAMES: Record<string, string> = {
@@ -36,16 +37,18 @@ export type InjectionLeadData = {
   businessName: string | null
   phase: string | null
   initialComment: string | null
+  marketingNote: string | null
   scheduledInjectAt: string | null
   contacts: Array<{ id: string; name: string | null; phone: string | null }>
 }
 
-export function InjectionQueueCard({ lead }: { lead: InjectionLeadData }) {
+export function InjectionQueueCard({ lead, marketingUsers = [] }: { lead: InjectionLeadData; marketingUsers?: MarketingUser[] }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showPhasePicker, setShowPhasePicker] = useState(false)
+  const [showAssign, setShowAssign] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
 
   useEffect(() => { setMounted(true) }, [])
@@ -56,6 +59,19 @@ export function InjectionQueueCard({ lead }: { lead: InjectionLeadData }) {
 
   function act(fn: () => Promise<void>) {
     startTransition(async () => { await fn(); router.refresh() })
+  }
+
+  function triggerInject(phase?: string) {
+    if (marketingUsers.length > 0) {
+      setShowAssign(true)
+    } else {
+      act(() => injectLead(lead.id, phase))
+    }
+  }
+
+  function handleAssignAndInject(userId?: string) {
+    setShowAssign(false)
+    act(() => injectLead(lead.id, lead.phase ?? undefined, userId))
   }
 
   const actionBtn = (label: string, color: string, onClick: () => void, disabled = false) => (
@@ -78,6 +94,12 @@ export function InjectionQueueCard({ lead }: { lead: InjectionLeadData }) {
       <p className="text-sm font-black text-gray-900 mb-0.5">{lead.address}</p>
       {lead.businessName && (
         <p className="text-xs text-gray-500 mb-2">{lead.businessName}</p>
+      )}
+      {lead.marketingNote && (
+        <div className="mb-2 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
+          <p className="text-[10px] font-bold text-blue-500 mb-0.5">Marketing</p>
+          <p className="text-[11px] text-blue-800 leading-snug line-clamp-2">{lead.marketingNote}</p>
+        </div>
       )}
       {lead.initialComment && (
         <div className="mb-2 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
@@ -103,16 +125,21 @@ export function InjectionQueueCard({ lead }: { lead: InjectionLeadData }) {
             <span className="px-2.5 py-1.5 bg-orange-100 text-orange-700 text-[11px] font-bold rounded-lg whitespace-nowrap border border-orange-200">
               Inject in {days} day{days !== 1 ? 's' : ''}
             </span>
-            {actionBtn('Inject Now', 'bg-blue-600 text-white hover:bg-blue-700', () => act(() => injectLead(lead.id, lead.phase ?? undefined)))}
+            {actionBtn('Inject Now', 'bg-blue-600 text-white hover:bg-blue-700', () => { triggerInject(lead.phase ?? undefined) })}
             {actionBtn('Cancel', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () => act(() => cancelLeadSchedule(lead.id)))}
           </>
         ) : (
           <>
-            {actionBtn('Inject Now', 'bg-blue-600 text-white hover:bg-blue-700', () => act(() => injectLead(lead.id, lead.phase ?? undefined)))}
+            {actionBtn('Inject Now', 'bg-blue-600 text-white hover:bg-blue-700', () => { triggerInject(lead.phase ?? undefined) })}
             {actionBtn('Schedule', 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200', () => setShowDatePicker(true))}
           </>
         )}
         {actionBtn('Move Phase', 'bg-gray-100 text-gray-600 hover:bg-gray-200', () => setShowPhasePicker(true))}
+        {actionBtn('Return to Evaluation', 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100', () => act(() => unParkLead(lead.id)))}
+        {actionBtn('Close Lead', 'bg-red-50 text-red-500 hover:bg-red-100', () => {
+          if (!confirm('Close this lead? It will be removed from all active lists.')) return
+          act(() => closeLead(lead.id))
+        })}
         <Link
           href={`/admin/leads/${lead.id}`}
           className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors whitespace-nowrap"
@@ -163,6 +190,39 @@ export function InjectionQueueCard({ lead }: { lead: InjectionLeadData }) {
                 Confirm
               </button>
             </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Assign Modal */}
+      {mounted && showAssign && createPortal(
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 shadow-2xl w-72">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-black text-gray-900">Assign to Marketing</h3>
+              <button onClick={() => setShowAssign(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4 truncate">{lead.address}</p>
+            <div className="space-y-1.5 mb-3">
+              {marketingUsers.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => handleAssignAndInject(u.id)}
+                  className="w-full px-3 py-2 text-sm font-semibold text-left rounded-lg bg-gray-50 border border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                >
+                  {u.name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => handleAssignAndInject(undefined)}
+              className="w-full px-3 py-2 text-xs font-bold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Inject without assigning
+            </button>
           </div>
         </div>,
         document.body,

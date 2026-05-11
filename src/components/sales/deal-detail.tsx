@@ -3,15 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import {
-  updateDeal,
-  markDealWon,
-  markDealLost,
-  createQuote,
-  updateQuote,
-  submitDraftQuote,
-  acceptQuote,
-} from '@/app/actions/sales'
+import { updateDeal, markDealWon, markDealLost } from '@/app/actions/sales'
 
 const STAGE_ORDER = ['NEW_OPPORTUNITY', 'DISCOVERY', 'ESTIMATION', 'QUOTE_SENT', 'NEGOTIATION']
 const STAGE_LABELS: Record<string, string> = {
@@ -51,12 +43,10 @@ type Deal = {
   siteVisitDate: Date | null
   deadline: Date | null
   negotiationDate: Date | null
-  lead: { address: string; phase: string | null; contacts: LeadContact[]; businessName: string | null }
+  lead: { address: string; phase: string | null; contacts: LeadContact[]; businessName: string | null; initialComment: string | null; marketingNote: string | null }
   quotes: Quote[]
 }
 type User = { id: string; firstName: string | null; lastName: string | null; email: string }
-
-type LineItem = { description: string; quantity: number; unitPrice: number }
 
 function fmtDate(d: Date | null) {
   if (!d) return ''
@@ -66,152 +56,6 @@ function fmtDate(d: Date | null) {
 function fmtMoney(n: number | null) {
   if (n == null) return '—'
   return '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-// ── Quote Form ─────────────────────────────────────────────────────────────
-function QuoteForm({
-  dealId,
-  editQuote,
-  onClose,
-}: {
-  dealId: string
-  editQuote?: Quote
-  onClose: () => void
-}) {
-  const parseItems = (): LineItem[] => {
-    try { return (editQuote?.lineItems as LineItem[]) ?? [] } catch { return [] }
-  }
-  const parseTaxRate = (): number => {
-    if (!editQuote || !editQuote.subtotal || !editQuote.tax) return 13
-    return Math.round((editQuote.tax / editQuote.subtotal) * 100)
-  }
-
-  const [items, setItems] = useState<LineItem[]>(
-    editQuote ? parseItems() : [{ description: '', quantity: 1, unitPrice: 0 }]
-  )
-  const [taxRate, setTaxRate] = useState(parseTaxRate())
-  const [notes, setNotes] = useState(editQuote?.notes ?? '')
-  const [pending, startTransition] = useTransition()
-  const router = useRouter()
-
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const tax = (subtotal * taxRate) / 100
-  const total = subtotal + tax
-
-  function setItem(idx: number, field: keyof LineItem, val: string | number) {
-    setItems(prev => prev.map((it, i) => (i === idx ? { ...it, [field]: val } : it)))
-  }
-  function addItem() {
-    setItems(prev => [...prev, { description: '', quantity: 1, unitPrice: 0 }])
-  }
-  function removeItem(idx: number) {
-    setItems(prev => prev.filter((_, i) => i !== idx))
-  }
-
-  function submit(doSubmit: boolean) {
-    startTransition(async () => {
-      const payload = { lineItems: items, subtotal, tax, total, notes: notes || undefined, submit: doSubmit }
-      if (editQuote) {
-        await updateQuote(editQuote.id, dealId, payload)
-      } else {
-        await createQuote(dealId, payload)
-      }
-      router.refresh()
-      onClose()
-    })
-  }
-
-  return (
-    <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
-      <h3 className="font-semibold text-gray-800">{editQuote ? `Edit Quote v${editQuote.version}` : 'New Quote'}</h3>
-
-      <div className="space-y-2">
-        {items.map((item, idx) => (
-          <div key={idx} className="flex gap-2 items-center">
-            <input
-              className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
-              placeholder="Description"
-              value={item.description}
-              onChange={e => setItem(idx, 'description', e.target.value)}
-            />
-            <input
-              type="number"
-              min={1}
-              className="w-16 border border-gray-300 rounded px-2 py-1 text-sm"
-              placeholder="Qty"
-              value={item.quantity}
-              onChange={e => setItem(idx, 'quantity', Number(e.target.value))}
-            />
-            <input
-              type="number"
-              min={0}
-              className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
-              placeholder="Unit $"
-              value={item.unitPrice}
-              onChange={e => setItem(idx, 'unitPrice', Number(e.target.value))}
-            />
-            <span className="text-sm text-gray-600 w-20 text-right">
-              ${(item.quantity * item.unitPrice).toFixed(2)}
-            </span>
-            <button
-              onClick={() => removeItem(idx)}
-              className="text-red-400 hover:text-red-600 text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <button onClick={addItem} className="text-sm text-blue-600 hover:underline">+ Add line item</button>
-      </div>
-
-      <div className="flex gap-4 items-center">
-        <label className="text-sm text-gray-600">
-          Tax %
-          <input
-            type="number"
-            min={0}
-            max={100}
-            className="ml-2 w-16 border border-gray-300 rounded px-2 py-1 text-sm"
-            value={taxRate}
-            onChange={e => setTaxRate(Number(e.target.value))}
-          />
-        </label>
-        <div className="ml-auto text-sm text-gray-700 space-y-0.5 text-right">
-          <div>Subtotal: <span className="font-medium">{fmtMoney(subtotal)}</span></div>
-          <div>Tax ({taxRate}%): <span className="font-medium">{fmtMoney(tax)}</span></div>
-          <div className="font-bold text-gray-900">Total: {fmtMoney(total)}</div>
-        </div>
-      </div>
-
-      <textarea
-        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-        rows={2}
-        placeholder="Notes (optional)"
-        value={notes}
-        onChange={e => setNotes(e.target.value)}
-      />
-
-      <div className="flex gap-2">
-        <button
-          disabled={pending}
-          onClick={() => submit(false)}
-          className="px-3 py-1.5 rounded text-sm font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
-        >
-          Save Draft
-        </button>
-        <button
-          disabled={pending}
-          onClick={() => submit(true)}
-          className="px-3 py-1.5 rounded text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
-        >
-          Submit to Client
-        </button>
-        <button onClick={onClose} className="ml-auto text-sm text-gray-500 hover:text-gray-700">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
 }
 
 // ── Mark Lost Modal ────────────────────────────────────────────────────────
@@ -261,11 +105,8 @@ function LostModal({ dealId, onClose }: { dealId: string; onClose: () => void })
 export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { deal: Deal; users: User[]; pipelinePath?: string }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
-  const [showQuoteForm, setShowQuoteForm] = useState(false)
-  const [editingQuote, setEditingQuote] = useState<Quote | null>(null)
   const [showLostModal, setShowLostModal] = useState(false)
 
-  // Editable fields
   const [projectName, setProjectName] = useState(deal.projectName ?? '')
   const [clientName, setClientName] = useState(deal.clientName ?? '')
   const [projectType, setProjectType] = useState(deal.projectType ?? '')
@@ -278,6 +119,10 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
 
   const isDone = deal.status === 'won' || deal.status === 'lost'
   const stageIdx = STAGE_ORDER.indexOf(deal.currentStage)
+  const acceptedQuote = deal.quotes.find(q => q.status === 'accepted')
+  const latestQuote = deal.quotes[0]
+
+  const estimationPath = `${pipelinePath.replace('/pipeline', '')}/deals/${deal.id}/estimation`
 
   function save() {
     startTransition(async () => {
@@ -297,28 +142,14 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
   }
 
   function win() {
+    if (!acceptedQuote) {
+      alert('Please accept a quote in the Estimation Workspace before marking this deal as Won.')
+      return
+    }
     startTransition(async () => {
       await markDealWon(deal.id)
       router.refresh()
     })
-  }
-
-  function submitDraft(quoteId: string) {
-    startTransition(async () => {
-      await submitDraftQuote(quoteId, deal.id)
-      router.refresh()
-    })
-  }
-
-  function acceptQ(quoteId: string) {
-    startTransition(async () => {
-      await acceptQuote(quoteId, deal.id)
-      router.refresh()
-    })
-  }
-
-  const lineItems = (q: Quote): LineItem[] => {
-    try { return (q.lineItems as LineItem[]) ?? [] } catch { return [] }
   }
 
   return (
@@ -378,6 +209,24 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
         </div>
       )}
 
+      {/* Estimation Workspace banner */}
+      {!isDone && (
+        <Link
+          href={estimationPath}
+          className="flex items-center justify-between w-full px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:bg-yellow-100 transition-colors"
+        >
+          <div>
+            <p className="text-sm font-black text-yellow-800">Estimation Workspace</p>
+            <p className="text-xs text-yellow-600">
+              {deal.quotes.length === 0
+                ? 'Upload plans, record measurements, create quotes'
+                : `${deal.quotes.length} quote${deal.quotes.length !== 1 ? 's' : ''}${acceptedQuote ? ' · 1 accepted' : ''} · Click to manage`}
+            </p>
+          </div>
+          <span className="text-yellow-600 font-bold text-lg">→</span>
+        </Link>
+      )}
+
       <div className="grid grid-cols-2 gap-6">
         {/* Left: editable fields */}
         <div className="space-y-4">
@@ -386,54 +235,27 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
 
             <label className="block text-xs text-gray-500">
               Project Name
-              <input
-                disabled={isDone}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={projectName}
-                onChange={e => setProjectName(e.target.value)}
-              />
+              <input disabled={isDone} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={projectName} onChange={e => setProjectName(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
               Client Name
-              <input
-                disabled={isDone}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-              />
+              <input disabled={isDone} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={clientName} onChange={e => setClientName(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
               Project Type
-              <input
-                disabled={isDone}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={projectType}
-                onChange={e => setProjectType(e.target.value)}
-              />
+              <input disabled={isDone} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={projectType} onChange={e => setProjectType(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
               Estimated Value ($)
-              <input
-                disabled={isDone}
-                type="number"
-                min={0}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={estimatedValue}
-                onChange={e => setEstimatedValue(e.target.value)}
-              />
+              <input disabled={isDone} type="number" min={0} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={estimatedValue} onChange={e => setEstimatedValue(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
-              Owner
-              <select
-                disabled={isDone}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={ownerId}
-                onChange={e => setOwnerId(e.target.value)}
-              >
+              Assigned To
+              <select disabled={isDone} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={ownerId} onChange={e => setOwnerId(e.target.value)}>
                 <option value="">— Unassigned —</option>
                 {users.map(u => (
                   <option key={u.id} value={u.id}>
@@ -445,13 +267,7 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
 
             <label className="block text-xs text-gray-500">
               Notes
-              <textarea
-                disabled={isDone}
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                rows={3}
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-              />
+              <textarea disabled={isDone} className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
             </label>
           </div>
 
@@ -460,58 +276,33 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
 
             <label className="block text-xs text-gray-500">
               Site Visit Date
-              <input
-                disabled={isDone}
-                type="date"
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={siteVisitDate}
-                onChange={e => setSiteVisitDate(e.target.value)}
-              />
+              <input disabled={isDone} type="date" className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={siteVisitDate} onChange={e => setSiteVisitDate(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
               Deadline
-              <input
-                disabled={isDone}
-                type="date"
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={deadline}
-                onChange={e => setDeadline(e.target.value)}
-              />
+              <input disabled={isDone} type="date" className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={deadline} onChange={e => setDeadline(e.target.value)} />
             </label>
 
             <label className="block text-xs text-gray-500">
               Negotiation Date
-              <input
-                disabled={isDone}
-                type="date"
-                className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                value={negotiationDate}
-                onChange={e => setNegotiationDate(e.target.value)}
-              />
+              <input disabled={isDone} type="date" className="mt-0.5 w-full border border-gray-300 rounded px-2 py-1.5 text-sm" value={negotiationDate} onChange={e => setNegotiationDate(e.target.value)} />
             </label>
           </div>
 
           {!isDone && (
-            <button
-              disabled={pending}
-              onClick={save}
-              className="w-full py-2 rounded text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
-            >
+            <button disabled={pending} onClick={save} className="w-full py-2 rounded text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
               Save Changes
             </button>
           )}
         </div>
 
-        {/* Right: lead info + quotes */}
+        {/* Right: lead info + quote summary */}
         <div className="space-y-4">
-          {/* Lead contacts */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-2">
             <h2 className="font-semibold text-gray-700">Lead Info</h2>
             <p className="text-sm text-gray-600">{deal.lead.address}</p>
-            {deal.lead.businessName && (
-              <p className="text-sm text-gray-500">{deal.lead.businessName}</p>
-            )}
+            {deal.lead.businessName && <p className="text-sm text-gray-500">{deal.lead.businessName}</p>}
             {deal.lead.phase && (
               <span className="inline-block text-[11px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
                 {deal.lead.phase}
@@ -529,106 +320,59 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
                 ))}
               </div>
             )}
+            {deal.lead.initialComment && (
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Field Notes</p>
+                <p className="text-xs text-gray-600 leading-relaxed">{deal.lead.initialComment}</p>
+              </div>
+            )}
+            {deal.lead.marketingNote && (
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-400 mb-1">Marketing Notes</p>
+                <p className="text-xs text-blue-700 leading-relaxed">{deal.lead.marketingNote}</p>
+              </div>
+            )}
           </div>
 
-          {/* Quotes */}
+          {/* Quote summary (read-only) */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-700">Quotes</h2>
-              {!isDone && !showQuoteForm && !editingQuote && (
-                <button
-                  onClick={() => setShowQuoteForm(true)}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  + New Quote
-                </button>
+              <h2 className="font-semibold text-gray-700">Quote Summary</h2>
+              {!isDone && (
+                <Link href={estimationPath} className="text-xs text-blue-600 hover:underline font-semibold">
+                  Manage →
+                </Link>
               )}
             </div>
 
-            {showQuoteForm && (
-              <QuoteForm dealId={deal.id} onClose={() => setShowQuoteForm(false)} />
-            )}
-
-            {editingQuote && (
-              <QuoteForm
-                dealId={deal.id}
-                editQuote={editingQuote}
-                onClose={() => setEditingQuote(null)}
-              />
-            )}
-
-            {deal.quotes.length === 0 && !showQuoteForm && (
-              <p className="text-sm text-gray-400">No quotes yet.</p>
-            )}
-
-            {deal.quotes.map(q => (
-              <div key={q.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-800">Quote v{q.version}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    q.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                    q.status === 'submitted' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
-                  </span>
-                </div>
-
-                {lineItems(q).length > 0 && (
-                  <div className="space-y-0.5">
-                    {lineItems(q).map((item, i) => (
-                      <div key={i} className="flex justify-between text-xs text-gray-600">
-                        <span>{item.description} × {item.quantity}</span>
-                        <span>{fmtMoney(item.quantity * item.unitPrice)}</span>
+            {deal.quotes.length === 0 ? (
+              <p className="text-sm text-gray-400">No quotes yet. <Link href={estimationPath} className="text-blue-600 hover:underline">Create one →</Link></p>
+            ) : (
+              <div className="space-y-2">
+                {acceptedQuote && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-green-700">✓ Accepted — Quote v{acceptedQuote.version}</span>
+                      <span className="text-sm font-black text-green-800">{fmtMoney(acceptedQuote.total)}</span>
+                    </div>
+                  </div>
+                )}
+                {!acceptedQuote && latestQuote && (
+                  <div className="border border-gray-100 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-600">Latest — Quote v{latestQuote.version}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${latestQuote.status === 'submitted' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {latestQuote.status}
+                        </span>
+                        <span className="text-sm font-bold text-gray-700">{fmtMoney(latestQuote.total)}</span>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 )}
-
-                <div className="text-xs text-gray-500 space-y-0.5 border-t border-gray-100 pt-1">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span><span>{fmtMoney(q.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax</span><span>{fmtMoney(q.tax)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-gray-800">
-                    <span>Total</span><span>{fmtMoney(q.total)}</span>
-                  </div>
-                </div>
-
-                {q.notes && <p className="text-xs text-gray-500 italic">{q.notes}</p>}
-
-                {q.status === 'draft' && !isDone && (
-                  <div className="flex gap-2 mt-1">
-                    <button
-                      disabled={pending}
-                      onClick={() => { setShowQuoteForm(false); setEditingQuote(q) }}
-                      className="px-3 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      disabled={pending}
-                      onClick={() => submitDraft(q.id)}
-                      className="px-3 py-1 rounded text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
-                    >
-                      Submit to Client
-                    </button>
-                  </div>
-                )}
-
-                {q.status === 'submitted' && !isDone && (
-                  <button
-                    disabled={pending}
-                    onClick={() => acceptQ(q.id)}
-                    className="mt-1 px-3 py-1 rounded text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40"
-                  >
-                    Mark Accepted
-                  </button>
-                )}
+                <p className="text-xs text-gray-400">{deal.quotes.length} quote{deal.quotes.length !== 1 ? 's' : ''} total</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

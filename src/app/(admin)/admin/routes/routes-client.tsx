@@ -166,6 +166,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
   const [taskName, setTaskName]       = useState('')
   const [zoneId, setZoneId]           = useState(zones[0]?.id ?? '')
   const [filterZone, setFilterZone]   = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [panTarget, setPanTarget]     = useState<{ pos: LatLng; t: number } | null>(null)
   const [isPending, startTransition]  = useTransition()
 
@@ -252,11 +253,20 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
     })
   }
 
-  const filteredTasks   = filterZone ? tasks.filter(t => t.zoneId === filterZone) : tasks
+  const zoneFiltered    = filterZone ? tasks.filter(t => t.zoneId === filterZone) : tasks
+  const filteredTasks   = filterStatus ? zoneFiltered.filter(t => t.status === filterStatus) : zoneFiltered
   const unassignedTasks = filteredTasks.filter(t => t.status === 'active')
   const assignedTasks   = filteredTasks.filter(t => t.status === 'assigned')
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in_progress')
   const completedTasks  = filteredTasks.filter(t => t.status === 'completed')
+
+  const statusFilters = [
+    { value: '',            label: 'All',         count: zoneFiltered.length },
+    { value: 'active',      label: 'Unassigned',  count: zoneFiltered.filter(t => t.status === 'active').length },
+    { value: 'assigned',    label: 'Accepted',    count: zoneFiltered.filter(t => t.status === 'assigned').length },
+    { value: 'in_progress', label: 'In Progress', count: zoneFiltered.filter(t => t.status === 'in_progress').length },
+    { value: 'completed',   label: 'Completed',   count: zoneFiltered.filter(t => t.status === 'completed').length },
+  ]
 
   return (
     <div className="-m-4 sm:-m-6 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
@@ -320,7 +330,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
 
           {/* Zone filter */}
           {zones.length > 1 && (
-            <div className="px-3 pt-3 pb-2 shrink-0">
+            <div className="px-3 pt-3 pb-0 shrink-0">
               <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
                 className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:border-blue-400">
                 <option value="">All Zones</option>
@@ -328,6 +338,20 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
               </select>
             </div>
           )}
+
+          {/* Status filter */}
+          <div className="px-3 pt-2 pb-2 shrink-0 flex flex-wrap gap-1">
+            {statusFilters.map(f => (
+              <button key={f.value} onClick={() => setFilterStatus(f.value)}
+                className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors ${
+                  filterStatus === f.value
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}>
+                {f.label} {f.count > 0 && <span className="opacity-70">({f.count})</span>}
+              </button>
+            ))}
+          </div>
 
           {/* Task list */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1 bg-gray-50">

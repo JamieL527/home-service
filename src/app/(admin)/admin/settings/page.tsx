@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic'
+
 import { prisma } from '@/lib/prisma'
 import { ZoneManager } from './zone-manager'
 
 const TABS = [
-  { key: 'general', label: 'General' },
   { key: 'zones',   label: 'Zones' },
+  { key: 'general', label: 'General' }, 
 ]
 
 export default async function SettingsPage({
@@ -11,7 +13,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ tab?: string }>
 }) {
-  const { tab = 'general' } = await searchParams
+  const { tab = 'zones' } = await searchParams
   const zones = await prisma.zone.findMany({ orderBy: { createdAt: 'asc' } })
 
   return (

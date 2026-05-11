@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
@@ -65,10 +67,10 @@ export default async function CollectorDashboardPage() {
   const recentLeads = leads.slice(0, 5)
 
   const stats = [
-    { label: 'Total',       value: total,        valueCls: 'text-gray-900',   cardCls: 'bg-white border-gray-200' },
-    { label: 'Submitted',   value: submitted,    valueCls: 'text-blue-700',   cardCls: 'bg-blue-50 border-blue-100' },
-    { label: 'Under Review',value: underReview,  valueCls: 'text-yellow-700', cardCls: 'bg-yellow-50 border-yellow-100' },
-    { label: 'Needs Fix',   value: needsFixCount,valueCls: 'text-red-700',    cardCls: 'bg-red-50 border-red-100' },
+    { label: 'Total',       value: total,        valueCls: 'text-gray-900',   cardCls: 'bg-white border-gray-200',         href: null },
+    { label: 'Submitted',   value: submitted,    valueCls: 'text-blue-700',   cardCls: 'bg-blue-50 border-blue-100',       href: null },
+    { label: 'Under Review',value: underReview,  valueCls: 'text-yellow-700', cardCls: 'bg-yellow-50 border-yellow-100',   href: null },
+    { label: 'Needs Fix',   value: needsFixCount,valueCls: 'text-red-700',    cardCls: 'bg-red-50 border-red-100',         href: '#section-fix' },
   ]
 
   return (
@@ -101,21 +103,21 @@ export default async function CollectorDashboardPage() {
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Today:</span>
           <span className="text-xl font-black text-gray-900">{todayCount}</span>
         </div>
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm">
+        <a href="#section-drafts" className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm hover:bg-amber-100 transition-colors">
           <FileEdit size={13} className="text-amber-600" />
           <span className="text-xs font-bold text-amber-600">Drafts:</span>
           <span className="text-xl font-black text-amber-700">{draftCount}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm">
+        </a>
+        <a href="#section-fix" className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm hover:bg-red-100 transition-colors">
           <AlertTriangle size={13} className="text-red-500" />
           <span className="text-xs font-bold text-red-500">Fix:</span>
           <span className="text-xl font-black text-red-700">{needsFixCount}</span>
-        </div>
+        </a>
       </div>
 
       {/* Continue Draft card */}
       {draftCount > 0 && latestDraft && (
-        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm">
+        <div id="section-drafts" className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-start gap-3 min-w-0">
             <FileEdit size={18} className="text-amber-500 mt-0.5 shrink-0" />
             <div className="min-w-0">
@@ -136,7 +138,7 @@ export default async function CollectorDashboardPage() {
 
       {/* Needs Fix cards */}
       {needsFixLeads.length > 0 && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm">
+        <div id="section-fix" className="mb-4 bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={15} className="text-red-500" />
             <p className="text-sm font-black text-red-800">
@@ -164,12 +166,19 @@ export default async function CollectorDashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {stats.map((s) => (
-          <div key={s.label} className={`${s.cardCls} border rounded-xl p-4 shadow-sm`}>
-            <p className="text-xs font-medium text-gray-500 mb-1">{s.label}</p>
-            <p className={`text-3xl font-black ${s.valueCls}`}>{s.value}</p>
-          </div>
-        ))}
+        {stats.map((s) =>
+          s.href ? (
+            <a key={s.label} href={s.href} className={`${s.cardCls} border rounded-xl p-4 shadow-sm hover:brightness-95 transition-all`}>
+              <p className="text-xs font-medium text-gray-500 mb-1">{s.label}</p>
+              <p className={`text-3xl font-black ${s.valueCls}`}>{s.value}</p>
+            </a>
+          ) : (
+            <div key={s.label} className={`${s.cardCls} border rounded-xl p-4 shadow-sm`}>
+              <p className="text-xs font-medium text-gray-500 mb-1">{s.label}</p>
+              <p className={`text-3xl font-black ${s.valueCls}`}>{s.value}</p>
+            </div>
+          )
+        )}
       </div>
 
       {/* Route Tasks */}
@@ -204,7 +213,7 @@ export default async function CollectorDashboardPage() {
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <p className="text-sm font-bold text-gray-900 truncate">{task.name}</p>
                         {isAvailable  && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Available</span>}
-                        {isAssigned   && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Claimed ✓</span>}
+                        {isAssigned   && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Accepted ✓</span>}
                         {isInProgress && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">In Progress</span>}
                         {isDone       && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">Completed ✓</span>}
                       </div>

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { LeadActionButtons } from '@/components/admin/lead-action-buttons'
@@ -105,21 +107,21 @@ export default async function EvaluationPage({
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm">
+        <a href="#section-backed" className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm hover:bg-orange-100 transition-colors">
           <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-1">Backed</p>
           <p className="text-3xl font-black text-orange-600">{backedCount}</p>
           <p className="text-xs text-orange-400 mt-0.5">Needs re-evaluation</p>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm">
+        </a>
+        <a href="#section-new" className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm hover:bg-green-100 transition-colors">
           <p className="text-xs font-bold text-green-600 uppercase tracking-wider mb-1">New</p>
           <p className="text-3xl font-black text-green-700">{newLeadCount}</p>
           <p className="text-xs text-green-500 mt-0.5">New Intake</p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm">
+        </a>
+        <a href="#section-urgent" className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm hover:bg-red-100 transition-colors">
           <p className="text-xs font-bold text-red-500 uppercase tracking-wider mb-1">Urgent</p>
           <p className="text-3xl font-black text-red-700">{urgentCount}</p>
           <p className="text-xs text-red-400 mt-0.5">Immediate action required</p>
-        </div>
+        </a>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1">Total Leads</p>
           <p className="text-3xl font-black text-blue-900">{totalCount}</p>
@@ -173,7 +175,7 @@ export default async function EvaluationPage({
 
       {/* Action Queue — Urgent */}
       {urgentLeads.length > 0 && (
-        <div className="mb-5 rounded-xl border border-red-300 overflow-hidden shadow-sm">
+        <div id="section-urgent" className="mb-5 rounded-xl border border-red-300 overflow-hidden shadow-sm">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-red-100 border-b border-amber-200">
             <Bell size={13} className="text-red-600" />
             <span className="text-xs font-black uppercase tracking-wider text-red-700">
@@ -226,7 +228,7 @@ export default async function EvaluationPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* ── Backed Leads ── */}
-        <div className="rounded-xl border border-orange-300 overflow-hidden shadow-sm flex flex-col">
+        <div id="section-backed" className="rounded-xl border border-orange-300 overflow-hidden shadow-sm flex flex-col">
           {/* Header inside the box */}
           <div className="flex items-center justify-between px-4 py-3 bg-orange-200 border-b border-orange-300 shrink-0">
             <div className="flex items-center gap-2">
@@ -302,7 +304,7 @@ export default async function EvaluationPage({
         </div>
 
         {/* ── New Leads ── */}
-        <div className="rounded-xl border border-green-200 overflow-hidden shadow-sm flex flex-col">
+        <div id="section-new" className="rounded-xl border border-green-200 overflow-hidden shadow-sm flex flex-col">
           {/* Header inside the box */}
           <div className="flex items-center justify-between px-4 py-3 bg-green-100 border-b border-green-200 shrink-0">
             <div className="flex items-center gap-2">

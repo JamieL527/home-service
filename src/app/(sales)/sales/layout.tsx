@@ -16,7 +16,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
           <span className="sm:hidden text-sm font-bold text-[#1a2e4a]">Sales</span>
-          <span className="hidden sm:block text-xl font-medium text-gray-500">Blue Jays On Air</span>
+          <span className="hidden sm:block text-2xl font-medium text-foreground">Blue Jays On Air</span>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
               Sign out

@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 function StatCard({
   label,
   value,
@@ -105,8 +107,8 @@ export default async function AdminDashboardPage() {
       <Group title="Leads" cols={5}>
         <StatCard label="Total Leads"   value={totalLeads}      href="/admin/evaluation" color="gray" />
         <StatCard label="New Leads"     value={newLeads}        href="/admin/evaluation" color="blue" />
-        <StatCard label="In Marketing"  value={inMarketingLeads} href="/marketing/inbox"  color="blue" />
-        <StatCard label="Qualified"     value={qualifiedLeads}  href="/sales/pipeline"   color="green" />
+        <StatCard label="In Marketing"  value={inMarketingLeads} href="/admin/marketing"  color="blue" />
+        <StatCard label="Qualified"     value={qualifiedLeads}  href="/admin/sales"       color="green" />
         <StatCard label="Parked"        value={parkedLeads}     href="/admin/parking"    color="gray" />
       </Group>
 
@@ -119,9 +121,9 @@ export default async function AdminDashboardPage() {
       </Group>
 
       <Group title="Sales">
-        <StatCard label="Active Deals"     value={activeDeals}    href="/sales/pipeline" color="blue" />
-        <StatCard label="Won This Month"   value={wonThisMonth}   href="/sales/pipeline" color="green" />
-        <StatCard label="Lost This Month"  value={lostThisMonth}  href="/sales/pipeline" color="red" />
+        <StatCard label="Active Deals"     value={activeDeals}    href="/admin/sales" color="blue" />
+        <StatCard label="Won This Month"   value={wonThisMonth}   href="/admin/sales" color="green" />
+        <StatCard label="Lost This Month"  value={lostThisMonth}  href="/admin/sales" color="red" />
       </Group>
 
       <Group title="Contractors">

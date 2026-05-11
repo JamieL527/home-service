@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="sm:hidden">
             <AdminMobileNav />
           </div>
-          <span className="hidden sm:block text-xl font-medium text-foreground">Blue Jays On Air</span>
+          <span className="hidden sm:block text-2xl font-medium text-foreground">Blue Jays On Air</span>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
               Sign out

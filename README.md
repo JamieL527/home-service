@@ -8,7 +8,7 @@ The platform serves five distinct user roles across separate portals:
 
 | Role | Portal | Responsibilities |
 |---|---|---|
-| **Admin** | `/admin` | User management, lead evaluation, job board, contractor approval, settings |
+| **Admin** | `/admin` | User management, lead evaluation, job board, contractor approval, route task management, settings |
 | **Sales** | `/sales` | CRM pipeline, deal management |
 | **Marketing** | `/marketing` | Lead inbox, outreach tracking, contact qualification |
 | **Data Collector** | `/collector` | Field lead collection with GPS, photos, OCR scanning |
@@ -97,12 +97,15 @@ src/
 │   │   ├── evaluation/         # Lead review queue
 │   │   ├── leads/[id]/         # Lead detail
 │   │   ├── jobs/               # Job board
+│   │   ├── routes/             # Route task map (draw zones, manage assignments)
+│   │   ├── permits/            # Municipal permit map
 │   │   ├── users/              # User & contractor management
 │   │   ├── marketing/          # Marketing inbox (admin view)
 │   │   ├── sales/              # Sales pipeline (admin view)
 │   │   └── settings/           # Zones configuration
 │   ├── (collector)/collector/  # Field collector portal
 │   │   ├── dashboard/
+│   │   ├── routes/             # View and claim route tasks
 │   │   └── leads/              # Create / view / edit leads
 │   ├── (contractor)/contractor/ # Contractor portal
 │   │   ├── overview/
@@ -127,6 +130,18 @@ src/
 ```
 
 ## Key Features
+
+### Route Task Management
+- Admin draws collection zones on Google Maps by clicking vertices to form polygons
+- Zones assigned a color (10 presets) and linked to a Zone for team scoping
+- Task statuses: Unassigned → Claimed → In Progress → Completed
+- First-accept-wins claim system with DB transaction to prevent race conditions
+- Admin can rename tasks inline, force-release a claimed task, or delete
+- Collector sees available tasks in their zone, accepts, collects leads, marks done
+- Cancel allowed if no leads submitted yet; task returns to the pool
+- Lead count per task visible to admin in real time
+- Collector's new-lead map shows their active task polygon as a visual boundary
+- Submitting first lead auto-advances task from Claimed → In Progress
 
 ### Data Collector (Mobile-first)
 - GPS pin drop + reverse geocoding for precise job site location

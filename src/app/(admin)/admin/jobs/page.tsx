@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { Briefcase } from 'lucide-react'
@@ -84,7 +86,6 @@ export default async function JobBoardPage({
       <div className="mb-5">
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">
           Jobs{' '}
-          <span className="text-lg font-medium text-gray-400">(Active Pipeline)</span>
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">Manage jobs from injection to completion</p>
       </div>

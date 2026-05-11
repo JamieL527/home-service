@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { requireContractorUser } from '@/lib/contractor'
 import { prisma } from '@/lib/prisma'

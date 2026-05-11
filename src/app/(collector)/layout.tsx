@@ -17,8 +17,8 @@ export default function CollectorLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-white px-4 sm:px-6">
           {/* Mobile: show app name; desktop: show user/company info */}
-          <span className="sm:hidden text-sm font-bold text-[#1a2e4a]">Data Collector</span>
-          <span className="hidden sm:block text-sm text-gray-500">Blue Jays On Air</span>
+          <span className="sm:hidden text-2xl font-bold text-[#1a2e4a]">Data Collector</span>
+          <span className="hidden sm:block text-2xl font-medium text-foreground">Blue Jays On Air</span>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
               Sign out

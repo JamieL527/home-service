@@ -432,7 +432,7 @@ export function InboxBoard({
         {/* Page heading */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-black text-gray-900">Marketing Inbox</h1>
+            <h1 className="text-2xl font-black text-gray-900">Marketing Inbox</h1>
             <p className="text-xs text-gray-400 mt-0.5">Construction pipeline management</p>
           </div>
           <div className="flex items-center gap-2">

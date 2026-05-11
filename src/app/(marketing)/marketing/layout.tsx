@@ -8,7 +8,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-background">
       <aside className="hidden sm:flex sm:w-56 sm:shrink-0 sm:flex-col border-r border-white/10 bg-[#1a2e4a]">
         <div className="flex h-14 items-center border-b border-white/10 px-4">
-          <span className="text-2xl font-bold text-white">Marketing</span>
+          <span className="text-lg font-bold text-white">Marketing</span>
         </div>
         <MarketingSidebarNav />
       </aside>
@@ -16,7 +16,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
           <span className="sm:hidden text-sm font-bold text-[#1a2e4a]">Marketing</span>
-          <span className="hidden sm:block text-xl font-medium text-gray-500">Blue Jays On Air</span>
+          <span className="hidden sm:block text-2xl font-medium text-foreground">Blue Jays On Air</span>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
               Sign out

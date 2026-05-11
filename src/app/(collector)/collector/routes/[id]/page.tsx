@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
@@ -16,7 +18,7 @@ function centroid(poly: LatLng[]): LatLng {
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   active:      { label: 'Available',   cls: 'bg-purple-900/60 text-purple-300 border border-purple-500/40' },
-  assigned:    { label: 'Claimed',     cls: 'bg-yellow-900/60 text-yellow-300 border border-yellow-500/40' },
+  assigned:    { label: 'Accepted',    cls: 'bg-yellow-900/60 text-yellow-300 border border-yellow-500/40' },
   in_progress: { label: 'In Progress', cls: 'bg-blue-900/60 text-blue-300 border border-blue-500/40' },
   completed:   { label: 'Completed',   cls: 'bg-green-900/40 text-green-400 border border-green-500/40' },
 }

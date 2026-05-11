@@ -343,7 +343,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
             )}
             {assignedTasks.length > 0 && (
               <div className="mb-2">
-                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-wider px-2 mb-1">Claimed ({assignedTasks.length})</p>
+                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-wider px-2 mb-1">Accepted ({assignedTasks.length})</p>
                 {assignedTasks.map(task => (
                   <TaskCard key={task.id} task={task} selected={selectedId === task.id}
                     onSelect={() => handleSelectTask(task)} onDelete={() => handleDelete(task.id)}
@@ -501,7 +501,7 @@ function TaskCard({ task, selected, onSelect, onDelete, onRename, onRelease, dis
     : null
 
   const statusLabel: Record<string, string> = {
-    active: 'Unassigned', assigned: 'Claimed', in_progress: 'In Progress', completed: 'Completed',
+    active: 'Unassigned', assigned: 'Accepted', in_progress: 'In Progress', completed: 'Completed',
   }
   const statusColor: Record<string, string> = {
     active: 'bg-purple-100 text-purple-700',

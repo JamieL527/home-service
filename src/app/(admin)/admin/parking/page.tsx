@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { LeadActionButtons } from '@/components/admin/lead-action-buttons'
@@ -98,19 +100,19 @@ export default async function ParkingPage({
           <span className="text-2xl font-black text-amber-700">{totalAll}</span>
           <span className="text-xs text-amber-400">in Parking</span>
         </div>
-        <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-200 rounded-xl px-4 py-3 shadow-sm">
+        <a href="#section-ready" className="flex items-center gap-2 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-200 rounded-xl px-4 py-3 shadow-sm hover:brightness-95 transition-all">
           <Zap size={14} className="text-blue-700" />
           <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">Ready Today:</span>
           <span className="text-2xl font-black text-blue-700">{readyLeads.length}</span>
           <span className="text-blue-300 mx-1">|</span>
           <span className="text-xs font-bold text-orange-500 uppercase tracking-wider">Urgent:</span>
           <span className="text-sm font-black bg-orange-500 text-white rounded-full px-2 py-0.5">{urgentCount}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-200 rounded-xl px-4 py-3 shadow-sm">
+        </a>
+        <a href="#section-scheduled" className="flex items-center gap-2 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-200 rounded-xl px-4 py-3 shadow-sm hover:brightness-95 transition-all">
           <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">Scheduled:</span>
           <span className="text-2xl font-black text-blue-700">{futureScheduledLeads.length}</span>
           <span className="text-xs text-blue-400">→ Future Jobs</span>
-        </div>
+        </a>
         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 shadow-sm">
           <span className="text-xs font-bold text-green-600 uppercase tracking-wider">Future Jobs:</span>
           <span className="text-sm font-black bg-blue-600 text-white rounded-full px-2.5 py-1">{injectedCount}</span>
@@ -126,7 +128,7 @@ export default async function ParkingPage({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* Left: READY TODAY */}
-          <div className="rounded-xl border border-blue-200 overflow-hidden shadow-sm">
+          <div id="section-ready" className="rounded-xl border border-blue-200 overflow-hidden shadow-sm">
             <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border-b border-blue-200">
               <span className="text-xs font-black uppercase tracking-wider text-blue-700">READY TODAY</span>
               <span className="ml-auto text-[10px] font-black bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">
@@ -147,7 +149,7 @@ export default async function ParkingPage({
           </div>
 
           {/* Right: Scheduled */}
-          <div className="rounded-xl border border-orange-200 overflow-hidden shadow-sm">
+          <div id="section-scheduled" className="rounded-xl border border-orange-200 overflow-hidden shadow-sm">
             <div className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 border-b border-orange-200">
               <span className="text-xs font-black uppercase tracking-wider text-orange-700">Scheduled</span>
               <span className="ml-auto text-[10px] font-black bg-orange-100 text-orange-700 rounded-full px-2 py-0.5">

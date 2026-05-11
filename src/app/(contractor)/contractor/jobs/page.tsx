@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { requireContractorUser } from '@/lib/contractor'
 import { prisma } from '@/lib/prisma'
@@ -96,18 +98,18 @@ export default async function ContractorJobsPage({
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
+        <Link href="/contractor/jobs?tab=offers" className="rounded-lg border border-blue-200 bg-blue-50 p-5 hover:bg-blue-100 transition-colors">
           <p className="text-sm font-medium text-blue-600">New Offers</p>
           <p className="mt-2 text-3xl font-bold text-blue-700">{offerCount}</p>
-        </div>
-        <div className="rounded-lg border border-green-200 bg-green-50 p-5">
+        </Link>
+        <Link href="/contractor/jobs?tab=active" className="rounded-lg border border-green-200 bg-green-50 p-5 hover:bg-green-100 transition-colors">
           <p className="text-sm font-medium text-green-600">Active Jobs</p>
           <p className="mt-2 text-3xl font-bold text-green-700">{activeCount}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
+        </Link>
+        <Link href="/contractor/jobs?tab=completed" className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:bg-gray-100 transition-colors">
           <p className="text-sm font-medium text-gray-500">Completed</p>
           <p className="mt-2 text-3xl font-bold text-gray-600">{completedCount}</p>
-        </div>
+        </Link>
       </div>
 
       {/* Tabs */}

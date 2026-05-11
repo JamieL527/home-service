@@ -90,6 +90,7 @@ export async function acceptRouteTask(id: string, _formData: FormData): Promise<
     })
   })
 
+  revalidatePath('/admin/routes')
   revalidatePath('/collector/dashboard')
   revalidatePath('/collector/routes')
 }
@@ -112,6 +113,7 @@ export async function releaseRouteTask(id: string, _formData: FormData): Promise
     })
   })
 
+  revalidatePath('/admin/routes')
   revalidatePath('/collector/dashboard')
   revalidatePath('/collector/routes')
 }
@@ -157,6 +159,7 @@ export async function completeRouteTask(id: string, _formData: FormData): Promis
     data: { status: 'completed' },
   })
 
+  revalidatePath('/admin/routes')
   revalidatePath('/collector/dashboard')
   revalidatePath('/collector/routes')
 }

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
 import { NewLeadForm } from './form'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '@/app/actions/auth'
@@ -11,7 +11,7 @@ const URL_ERRORS: Record<string, string> = {
   account_rejected:  'Your account has been rejected. Please contact support.',
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const [state, action, isPending] = useActionState(login, null)
   const searchParams = useSearchParams()
   const urlError = URL_ERRORS[searchParams.get('error') ?? '']
@@ -92,5 +92,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

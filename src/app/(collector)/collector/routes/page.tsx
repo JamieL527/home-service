@@ -3,20 +3,29 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
-import { Route, MapPin, CheckCircle, Clock } from 'lucide-react'
+import { Route, MapPin } from 'lucide-react'
 
 export default async function CollectorRoutesPage() {
   const { user } = await requireCollectorUser()
 
   const tasks = user.zoneId
     ? await prisma.routeTask.findMany({
-        where: { zoneId: user.zoneId },
+        where: {
+          zoneId: user.zoneId,
+          OR: [
+            { status: 'active', assignedToId: null },
+            { assignedToId: user.id },
+          ],
+        },
+        include: { zone: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
       })
     : []
 
-  const active = tasks.filter((t) => t.status === 'active')
-  const completed = tasks.filter((t) => t.status === 'completed')
+  const available   = tasks.filter((t) => t.status === 'active' && !t.assignedToId)
+  const accepted    = tasks.filter((t) => t.status === 'assigned' && t.assignedToId === user.id)
+  const inProgress  = tasks.filter((t) => t.status === 'in_progress' && t.assignedToId === user.id)
+  const completed   = tasks.filter((t) => t.status === 'completed' && t.assignedToId === user.id)
 
   return (
     <div className="animate-fadeIn">
@@ -35,70 +44,38 @@ export default async function CollectorRoutesPage() {
         </div>
       )}
 
-      {active.length > 0 && (
-        <div className="mb-6">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Clock size={12} className="text-purple-500" />
-            Active ({active.length})
-          </p>
-          <div className="space-y-2">
-            {active.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-3.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-purple-900">{task.name}</p>
-                  <p className="text-xs text-purple-500 mt-0.5">
-                    {new Date(task.createdAt).toLocaleDateString('en-CA', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </p>
+      {[
+        { group: accepted,   label: 'Accepted',    labelCls: 'text-yellow-600', cardCls: 'bg-yellow-50 border-yellow-200',   btnCls: 'bg-yellow-500 hover:bg-yellow-600 text-white' },
+        { group: inProgress, label: 'In Progress', labelCls: 'text-blue-600',   cardCls: 'bg-blue-50 border-blue-200',       btnCls: 'bg-blue-600 hover:bg-blue-700 text-white' },
+        { group: available,  label: 'Available',   labelCls: 'text-purple-600', cardCls: 'bg-purple-50 border-purple-200',   btnCls: 'bg-purple-600 hover:bg-purple-700 text-white' },
+        { group: completed,  label: 'Completed',   labelCls: 'text-green-600',  cardCls: 'bg-gray-50 border-gray-200 opacity-70', btnCls: 'bg-gray-200 hover:bg-gray-300 text-gray-700' },
+      ].map(({ group, label, labelCls, cardCls, btnCls }) =>
+        group.length > 0 && (
+          <div key={label} className="mb-6">
+            <p className={`text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 ${labelCls}`}>
+              {label} ({group.length})
+            </p>
+            <div className="space-y-2">
+              {group.map((task) => (
+                <div key={task.id} className={`flex items-center justify-between border rounded-xl px-4 py-3.5 ${cardCls}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{task.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(task.createdAt).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/collector/routes/${task.id}`}
+                    className={`shrink-0 ml-3 flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${btnCls}`}
+                  >
+                    <MapPin size={12} />
+                    View
+                  </Link>
                 </div>
-                <Link
-                  href={`/collector/routes/${task.id}`}
-                  className="shrink-0 ml-3 flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  <MapPin size={12} />
-                  View on Map
-                </Link>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-
-      {completed.length > 0 && (
-        <div>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <CheckCircle size={12} className="text-green-500" />
-            Completed ({completed.length})
-          </p>
-          <div className="space-y-2">
-            {completed.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 opacity-70"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-700">{task.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(task.createdAt).toLocaleDateString('en-CA', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </p>
-                </div>
-                <Link
-                  href={`/collector/routes/${task.id}`}
-                  className="shrink-0 ml-3 flex items-center gap-1.5 px-3 py-2 bg-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  <MapPin size={12} />
-                  View
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
+        )
       )}
     </div>
   )

@@ -293,7 +293,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
       <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
 
         {/* ── Left panel ── */}
-        <div className={`sm:w-72 xl:w-80 shrink-0 flex flex-col overflow-hidden border-r border-gray-200 bg-white ${mobileTab === 'tasks' ? 'flex' : 'hidden'} sm:flex`}>
+        <div className={`flex-1 sm:flex-none sm:w-72 xl:w-80 sm:shrink-0 flex flex-col overflow-hidden border-r border-gray-200 bg-white ${mobileTab === 'tasks' ? 'flex' : 'hidden'} sm:flex`}>
 
           {/* Draw button (desktop) */}
           <div className="p-3 border-b border-gray-200 shrink-0 hidden sm:block">

@@ -35,10 +35,8 @@ export default async function CollectorDashboardPage() {
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
-  const [total, submitted, underReview, needsFixCount, leads, todayCount, draftLeads, needsFixLeads, myRoutes] = await Promise.all([
+  const [total, needsFixCount, leads, todayCount, draftLeads, needsFixLeads, myRoutes] = await Promise.all([
     prisma.lead.count({ where: { createdById: user.id } }),
-    prisma.lead.count({ where: { createdById: user.id, status: 'SUBMITTED' as never } }),
-    prisma.lead.count({ where: { createdById: user.id, status: 'UNDER_REVIEW' as never } }),
     prisma.lead.count({ where: { createdById: user.id, status: 'NEEDS_FIX' as never } }),
     prisma.lead.findMany({ where: { createdById: user.id }, orderBy: { createdAt: 'desc' } }),
     prisma.lead.count({ where: { createdById: user.id, createdAt: { gte: todayStart } } }),
@@ -66,12 +64,6 @@ export default async function CollectorDashboardPage() {
   const latestDraft = draftLeads[0]
   const recentLeads = leads.slice(0, 5)
 
-  const stats = [
-    { label: 'Total',       value: total,        valueCls: 'text-gray-900',   cardCls: 'bg-white border-gray-200',         href: null },
-    { label: 'Submitted',   value: submitted,    valueCls: 'text-blue-700',   cardCls: 'bg-blue-50 border-blue-100',       href: null },
-    { label: 'Under Review',value: underReview,  valueCls: 'text-yellow-700', cardCls: 'bg-yellow-50 border-yellow-100',   href: null },
-    { label: 'Needs Fix',   value: needsFixCount,valueCls: 'text-red-700',    cardCls: 'bg-red-50 border-red-100',         href: '#section-fix' },
-  ]
 
   return (
     <div className="animate-fadeIn">
@@ -97,21 +89,23 @@ export default async function CollectorDashboardPage() {
         </Link>
       </div>
 
-      {/* Today's quick stats */}
-      <div className="flex gap-2 sm:gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Today:</span>
-          <span className="text-xl font-black text-gray-900">{todayCount}</span>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Today</p>
+          <p className="text-3xl font-black text-gray-900">{todayCount}</p>
         </div>
-        <a href="#section-drafts" className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm hover:bg-amber-100 transition-colors">
-          <FileEdit size={13} className="text-amber-600" />
-          <span className="text-xs font-bold text-amber-600">Drafts:</span>
-          <span className="text-xl font-black text-amber-700">{draftCount}</span>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Total</p>
+          <p className="text-3xl font-black text-gray-900">{total}</p>
+        </div>
+        <a href="#section-drafts" className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm hover:brightness-95 transition-all">
+          <p className="text-xs font-medium text-amber-600 mb-1">Drafts</p>
+          <p className="text-3xl font-black text-amber-700">{draftCount}</p>
         </a>
-        <a href="#section-fix" className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 sm:px-4 py-2.5 shadow-sm hover:bg-red-100 transition-colors">
-          <AlertTriangle size={13} className="text-red-500" />
-          <span className="text-xs font-bold text-red-500">Fix:</span>
-          <span className="text-xl font-black text-red-700">{needsFixCount}</span>
+        <a href="#section-fix" className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm hover:brightness-95 transition-all">
+          <p className="text-xs font-medium text-red-500 mb-1">Needs Fix</p>
+          <p className="text-3xl font-black text-red-700">{needsFixCount}</p>
         </a>
       </div>
 
@@ -164,22 +158,6 @@ export default async function CollectorDashboardPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {stats.map((s) =>
-          s.href ? (
-            <a key={s.label} href={s.href} className={`${s.cardCls} border rounded-xl p-4 shadow-sm hover:brightness-95 transition-all`}>
-              <p className="text-xs font-medium text-gray-500 mb-1">{s.label}</p>
-              <p className={`text-3xl font-black ${s.valueCls}`}>{s.value}</p>
-            </a>
-          ) : (
-            <div key={s.label} className={`${s.cardCls} border rounded-xl p-4 shadow-sm`}>
-              <p className="text-xs font-medium text-gray-500 mb-1">{s.label}</p>
-              <p className={`text-3xl font-black ${s.valueCls}`}>{s.value}</p>
-            </div>
-          )
-        )}
-      </div>
 
       {/* Route Tasks */}
       {myRoutes.length > 0 && (

@@ -90,7 +90,8 @@ export default async function EvaluationPage({
   const newLeads = displayed.filter((l) => NEW_STATUSES.includes(l.status as never))
 
   const totalCount = allQueueLeads.length
-  const newLeadCount = allQueueLeads.filter((l) => NEW_STATUSES.includes(l.status as never)).length
+  const NEW_LEAD_COUNT_STATUSES = ['SUBMITTED', 'RESUBMITTED'] as never[]
+  const newLeadCount = allQueueLeads.filter((l) => NEW_LEAD_COUNT_STATUSES.includes(l.status as never)).length
   const backedCount = allQueueLeads.filter((l) => l.status === 'BACKED').length
   const urgentCount = allQueueLeads.filter((l) => l.status === 'URGENT').length
 

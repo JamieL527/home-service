@@ -154,44 +154,45 @@ export default async function JobBoardPage({
             const price = formatPrice(job)
 
             return (
-              <div key={job.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-start gap-4">
-                {/* Left: status dot */}
-                <div className="mt-1">
-                  <div className={`w-2.5 h-2.5 rounded-full ${meta.dot}`} />
-                </div>
+              <div key={job.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:gap-4">
 
-                {/* Main info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-2 flex-wrap mb-1">
-                    <p className="text-sm font-black text-gray-900 truncate">{job.lead.address}</p>
-                    {(job.phase ?? job.lead.phase) && (
-                      <span className="text-[10px] font-black bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 whitespace-nowrap">
-                        {PHASE_LABELS[job.phase ?? job.lead.phase ?? ''] ?? (job.phase ?? job.lead.phase)}
+                {/* Top row on mobile: dot + address + badges */}
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="mt-1.5 shrink-0">
+                    <div className={`w-2.5 h-2.5 rounded-full ${meta.dot}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-2 flex-wrap mb-1">
+                      <p className="text-sm font-black text-gray-900 truncate">{job.lead.address}</p>
+                      {(job.phase ?? job.lead.phase) && (
+                        <span className="text-[10px] font-black bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 whitespace-nowrap">
+                          {PHASE_LABELS[job.phase ?? job.lead.phase ?? ''] ?? (job.phase ?? job.lead.phase)}
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 whitespace-nowrap ${meta.color}`}>
+                        {meta.label}
                       </span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
+                      {job.serviceType && <span>Service: <span className="font-medium text-gray-700">{job.serviceType}</span></span>}
+                      {price && <span>Price: <span className="font-medium text-gray-700">{price}</span></span>}
+                      {job.timeline && <span>Timeline: <span className="font-medium text-gray-700">{job.timeline}</span></span>}
+                      {job.company && (
+                        <span>Contractor: <span className="font-medium text-gray-700">{job.company.name}</span></span>
+                      )}
+                    </div>
+                    {job.scope && (
+                      <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">{job.scope}</p>
                     )}
-                    <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 whitespace-nowrap ${meta.color}`}>
-                      {meta.label}
-                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
-                    {job.serviceType && <span>Service: <span className="font-medium text-gray-700">{job.serviceType}</span></span>}
-                    {price && <span>Price: <span className="font-medium text-gray-700">{price}</span></span>}
-                    {job.timeline && <span>Timeline: <span className="font-medium text-gray-700">{job.timeline}</span></span>}
-                    {job.company && (
-                      <span>Contractor: <span className="font-medium text-gray-700">{job.company.name}</span></span>
-                    )}
-                  </div>
-                  {job.scope && (
-                    <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">{job.scope}</p>
-                  )}
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 flex-wrap mt-3 sm:mt-0 sm:shrink-0 sm:flex-nowrap">
                   {(job.status as string) === 'PENDING' && (
                     <Link
                       href={`/admin/jobs/${job.id}`}
-                      className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
                       Fill Details
                     </Link>
@@ -199,7 +200,7 @@ export default async function JobBoardPage({
                   {(job.status as string) === 'READY' && (
                     <Link
                       href={`/admin/jobs/${job.id}/match`}
-                      className="px-3 py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
                     >
                       Find Contractor
                     </Link>
@@ -207,7 +208,7 @@ export default async function JobBoardPage({
                   {(job.status as string) === 'OFFER_SENT' && (
                     <Link
                       href={`/admin/jobs/${job.id}`}
-                      className="px-3 py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
                     >
                       View Offer
                     </Link>
@@ -215,14 +216,14 @@ export default async function JobBoardPage({
                   {(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED'] as const).includes(job.status as never) && (
                     <Link
                       href={`/admin/jobs/${job.id}`}
-                      className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap"
+                      className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap"
                     >
                       View Details
                     </Link>
                   )}
                   <Link
                     href={`/admin/leads/${job.lead.id}`}
-                    className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+                    className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     Lead Detail
                   </Link>

@@ -57,51 +57,43 @@ export default async function ContractorOverviewPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Link
           href="/contractor/jobs?tab=offers"
-          className={`rounded-xl border p-5 transition-colors hover:opacity-90 ${
-            offerCount > 0
-              ? 'border-blue-300 bg-blue-50'
-              : 'border-border bg-card'
-          }`}
+          className="rounded-xl border border-blue-200 bg-blue-50 p-5 hover:bg-blue-100 transition-colors"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Bell size={15} className={offerCount > 0 ? 'text-blue-500' : 'text-muted-foreground'} />
-            <p className={`text-sm font-medium ${offerCount > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-              New Offers
-            </p>
+            <Bell size={15} className="text-blue-500" />
+            <p className="text-sm font-medium text-blue-600">New Offers</p>
           </div>
-          <p className={`text-3xl font-bold ${offerCount > 0 ? 'text-blue-700' : 'text-foreground'}`}>
-            {offerCount}
-          </p>
+          <p className="text-3xl font-bold text-blue-700">{offerCount}</p>
         </Link>
 
         <Link
           href="/contractor/jobs?tab=active"
-          className="rounded-xl border border-border bg-card p-5 hover:opacity-90 transition-colors"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-5 hover:bg-amber-100 transition-colors"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Briefcase size={15} className="text-green-500" />
-            <p className="text-sm font-medium text-muted-foreground">Active Jobs</p>
+            <Briefcase size={15} className="text-amber-600" />
+            <p className="text-sm font-medium text-amber-700">Active Jobs</p>
           </div>
-          <p className="text-3xl font-bold text-foreground">{activeCount}</p>
+          <p className="text-3xl font-bold text-amber-700">{activeCount}</p>
         </Link>
 
         <Link
           href="/contractor/jobs?tab=completed"
-          className="rounded-xl border border-border bg-card p-5 hover:opacity-90 transition-colors"
+          className="rounded-xl border border-green-200 bg-green-50 p-5 hover:bg-green-100 transition-colors"
         >
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle size={15} className="text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">Completed</p>
+            <CheckCircle size={15} className="text-green-600" />
+            <p className="text-sm font-medium text-green-700">Completed</p>
           </div>
-          <p className="text-3xl font-bold text-foreground">{completedCount}</p>
+          <p className="text-3xl font-bold text-green-700">{completedCount}</p>
         </Link>
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Users size={15} className="text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">Team Members</p>
+            <Users size={15} className="text-gray-500" />
+            <p className="text-sm font-medium text-gray-600">Team Members</p>
           </div>
-          <p className="text-3xl font-bold text-foreground">{memberCount}</p>
+          <p className="text-3xl font-bold text-gray-700">{memberCount}</p>
         </div>
       </div>
 

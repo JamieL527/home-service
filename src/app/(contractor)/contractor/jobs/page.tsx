@@ -102,13 +102,13 @@ export default async function ContractorJobsPage({
           <p className="text-sm font-medium text-blue-600">New Offers</p>
           <p className="mt-2 text-3xl font-bold text-blue-700">{offerCount}</p>
         </Link>
-        <Link href="/contractor/jobs?tab=active" className="rounded-lg border border-green-200 bg-green-50 p-5 hover:bg-green-100 transition-colors">
-          <p className="text-sm font-medium text-green-600">Active Jobs</p>
-          <p className="mt-2 text-3xl font-bold text-green-700">{activeCount}</p>
+        <Link href="/contractor/jobs?tab=active" className="rounded-lg border border-amber-200 bg-amber-50 p-5 hover:bg-amber-100 transition-colors">
+          <p className="text-sm font-medium text-amber-700">Active Jobs</p>
+          <p className="mt-2 text-3xl font-bold text-amber-700">{activeCount}</p>
         </Link>
-        <Link href="/contractor/jobs?tab=completed" className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:bg-gray-100 transition-colors">
-          <p className="text-sm font-medium text-gray-500">Completed</p>
-          <p className="mt-2 text-3xl font-bold text-gray-600">{completedCount}</p>
+        <Link href="/contractor/jobs?tab=completed" className="rounded-lg border border-green-200 bg-green-50 p-5 hover:bg-green-100 transition-colors">
+          <p className="text-sm font-medium text-green-600">Completed</p>
+          <p className="mt-2 text-3xl font-bold text-green-700">{completedCount}</p>
         </Link>
       </div>
 

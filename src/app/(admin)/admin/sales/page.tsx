@@ -13,5 +13,5 @@ export default async function AdminSalesPage() {
     orderBy: { createdAt: 'desc' },
   })
 
-  return <PipelineBoard deals={deals} basePath="/admin/sales" />
+  return <PipelineBoard deals={deals} currentUserId={null} basePath="/admin/sales" />
 }

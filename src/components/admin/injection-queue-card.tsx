@@ -85,12 +85,18 @@ export function InjectionQueueCard({ lead, marketingUsers = [] }: { lead: Inject
   )
 
   return (
-    <div className="p-4">
-      {lead.phase && (
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">
-          {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
-        </p>
-      )}
+    <div className="relative p-4">
+      <Link href={`/admin/leads/${lead.id}`} className="absolute inset-0 z-0" />
+      <div className="flex items-start justify-between mb-1">
+        {lead.phase ? (
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+            {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
+          </p>
+        ) : <span />}
+        <Link href={`/admin/leads/${lead.id}`} className="relative z-10 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-1 transition-colors shrink-0">
+          Details
+        </Link>
+      </div>
       <p className="text-sm font-black text-gray-900 mb-0.5">{lead.address}</p>
       {lead.businessName && (
         <p className="text-xs text-gray-500 mb-2">{lead.businessName}</p>
@@ -119,7 +125,7 @@ export function InjectionQueueCard({ lead, marketingUsers = [] }: { lead: Inject
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="relative z-10 flex items-center gap-1.5 flex-wrap">
         {isScheduled ? (
           <>
             <span className="px-2.5 py-1.5 bg-orange-100 text-orange-700 text-[11px] font-bold rounded-lg whitespace-nowrap border border-orange-200">
@@ -140,12 +146,6 @@ export function InjectionQueueCard({ lead, marketingUsers = [] }: { lead: Inject
           if (!confirm('Close this lead? It will be removed from all active lists.')) return
           act(() => closeLead(lead.id))
         })}
-        <Link
-          href={`/admin/leads/${lead.id}`}
-          className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Details
-        </Link>
       </div>
 
       {/* Date Picker Modal */}

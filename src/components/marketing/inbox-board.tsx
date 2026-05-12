@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { X, Phone, MapPin, Bell, BarChart2 } from 'lucide-react'
@@ -23,6 +23,11 @@ type Lead = {
   nextFollowUpDate: Date | null
   marketingNote: string | null
   sentimentTag: string | null
+  initialComment: string | null
+  rating: string | null
+  website: string | null
+  officeLocation: string | null
+  zoneName: string | null
   updatedAt: Date
   createdAt: Date
   contacts: LeadContact[]
@@ -186,10 +191,12 @@ function DetailPanel({
   lead,
   globalIndex,
   onClose,
+  leadBasePath,
 }: {
   lead: Lead
   globalIndex: number
   onClose: () => void
+  leadBasePath: string
 }) {
   const [pending, startTrans] = useTransition()
   const [noteOpen, setNoteOpen] = useState(false)
@@ -223,7 +230,7 @@ function DetailPanel({
   )
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex items-start justify-between p-5 border-b border-gray-100">
         <div className="min-w-0 flex-1 pr-2">
@@ -243,9 +250,17 @@ function DetailPanel({
             </p>
           )}
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0">
-          <X size={15} className="text-gray-400" />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Link
+            href={leadBasePath.startsWith('/admin') ? `${leadBasePath}/${lead.id}?from=marketing` : `${leadBasePath}/${lead.id}`}
+            className="text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-0.5 transition-colors"
+          >
+            Full Details
+          </Link>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            <X size={15} className="text-gray-400" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -286,6 +301,14 @@ function DetailPanel({
               <span>{lead.address}</span>
             </div>
           </section>
+
+          {/* Field Notes */}
+          {lead.initialComment && (
+            <section>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">Field Notes</p>
+              <p className="text-xs text-amber-800 leading-relaxed bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">{lead.initialComment}</p>
+            </section>
+          )}
 
           {/* Sentiment */}
           <section>
@@ -497,6 +520,7 @@ export function InboxBoard({
   reactivatedCount,
   errorCount,
   basePath = '/marketing/inbox',
+  leadBasePath = '/marketing/leads',
 }: {
   tab: string
   allLeads: Lead[]
@@ -505,9 +529,20 @@ export function InboxBoard({
   reactivatedCount: number
   errorCount: number
   basePath?: string
+  leadBasePath?: string
 }) {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [myOnly, setMyOnly] = useState(false)
+  const [mobileCol, setMobileCol] = useState(COLUMNS[0].status)
+
+  useEffect(() => {
+    if (selectedLeadId) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [selectedLeadId])
 
   // Filter leads by the active tab's marketingTag, then optionally by assignee
   const activeTag = TAB_TAG[tab] ?? 'NEW'
@@ -616,12 +651,33 @@ export function InboxBoard({
 
         {/* Kanban board */}
         {totalVisible > 0 && (
+          <>
+          {/* Mobile: 2×2 column tab switcher */}
+          <div className="grid grid-cols-2 sm:hidden gap-2 mb-3">
+            {COLUMNS.map((col) => {
+              const count = filteredLeads.filter((l) => l.status === col.status).length
+              const active = mobileCol === col.status
+              return (
+                <button
+                  key={col.status}
+                  onClick={() => setMobileCol(col.status)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'
+                  }`}
+                >
+                  <span>{col.label}</span>
+                  <span className={`text-sm font-black ${active ? 'text-white' : 'text-gray-400'}`}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+
           <div className="overflow-x-auto pb-2">
-          <div className="grid grid-cols-4 gap-3 min-w-[700px]">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:min-w-[700px]">
             {COLUMNS.map((col) => {
               const colLeads = filteredLeads.filter((l) => l.status === col.status)
               return (
-                <div key={col.status} className="flex flex-col min-h-[480px]">
+                <div key={col.status} className={`flex flex-col min-h-[480px] ${mobileCol !== col.status ? 'hidden sm:flex' : ''}`}>
                   {/* Column header */}
                   <div
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-t-xl border border-b-0 ${col.headerCls}`}
@@ -660,17 +716,34 @@ export function InboxBoard({
             })}
           </div>
           </div>
+          </>
         )}
       </div>
 
-      {/* Detail panel */}
+      {/* Desktop: side panel */}
       {selectedLead && (
-        <div className="w-72 shrink-0 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden flex flex-col">
+        <div className="hidden sm:flex w-72 shrink-0 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden flex-col">
           <DetailPanel
             lead={selectedLead}
             globalIndex={selectedGlobalIndex >= 0 ? selectedGlobalIndex : 0}
             onClose={() => setSelectedLeadId(null)}
+            leadBasePath={leadBasePath}
           />
+        </div>
+      )}
+
+      {/* Mobile: bottom sheet overlay */}
+      {selectedLead && (
+        <div className="sm:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedLeadId(null)} />
+          <div className="relative z-10 bg-white rounded-t-2xl flex flex-col" style={{ maxHeight: '85vh' }}>
+            <DetailPanel
+              lead={selectedLead}
+              globalIndex={selectedGlobalIndex >= 0 ? selectedGlobalIndex : 0}
+              onClose={() => setSelectedLeadId(null)}
+              leadBasePath={leadBasePath}
+            />
+          </div>
         </div>
       )}
     </div>

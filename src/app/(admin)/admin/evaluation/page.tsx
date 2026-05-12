@@ -193,12 +193,18 @@ export default async function EvaluationPage({
             {urgentLeads.map((lead) => {
               const contact = lead.contacts[0]
               return (
-                <div key={lead.id} className="bg-white border border-amber-200 rounded-xl p-4 shadow-sm">
-                  {lead.phase && (
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider mb-1">
-                      {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
-                    </p>
-                  )}
+                <div key={lead.id} className="relative bg-white border border-amber-200 rounded-xl p-4 shadow-sm">
+                  <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="absolute inset-0 rounded-xl z-0" />
+                  <div className="flex items-start justify-between mb-1">
+                    {lead.phase ? (
+                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">
+                        {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
+                      </p>
+                    ) : <span />}
+                    <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="relative z-10 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-1 transition-colors">
+                      Details
+                    </Link>
+                  </div>
                   <p className="text-sm font-black text-gray-900">{lead.address}</p>
                   {lead.businessName && (
                     <p className="text-xs text-gray-500 mt-0.5 mb-2">{lead.businessName}</p>
@@ -215,14 +221,15 @@ export default async function EvaluationPage({
                       <span>{contact.name}{contact.phone && ` · ${contact.phone}`}</span>
                     </div>
                   )}
-                  <LeadActionButtons
-                    leadId={lead.id}
-                    variant="evaluation-urgent"
-                    leadPhase={lead.phase}
-                    leadAddress={lead.address}
-                    marketingUsers={marketingUsers}
-                    detailHref={`/admin/leads/${lead.id}`}
-                  />
+                  <div className="relative z-10">
+                    <LeadActionButtons
+                      leadId={lead.id}
+                      variant="evaluation-urgent"
+                      leadPhase={lead.phase}
+                      leadAddress={lead.address}
+                      marketingUsers={marketingUsers}
+                    />
+                  </div>
                 </div>
               )
             })}
@@ -266,12 +273,18 @@ export default async function EvaluationPage({
                         ? [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
                         : null
                       return (
-                        <div key={lead.id} className="bg-white border border-orange-200 rounded-xl p-4 shadow-sm">
-                          {lead.phase && (
-                            <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider mb-1">
-                              {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
-                            </p>
-                          )}
+                        <div key={lead.id} className="relative bg-white border border-orange-200 rounded-xl p-4 shadow-sm">
+                          <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="absolute inset-0 rounded-xl z-0" />
+                          <div className="flex items-start justify-between mb-1">
+                            {lead.phase ? (
+                              <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">
+                                {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
+                              </p>
+                            ) : <span />}
+                            <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="relative z-10 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-1 transition-colors">
+                              Details
+                            </Link>
+                          </div>
                           <p className="text-sm font-black text-gray-900">{lead.address}</p>
                           {lead.businessName && (
                             <p className="text-xs text-gray-500 mt-0.5 mb-2">{lead.businessName}</p>
@@ -293,14 +306,15 @@ export default async function EvaluationPage({
                               </span>
                             </div>
                           )}
-                          <LeadActionButtons
-                            leadId={lead.id}
-                            variant="evaluation-backed"
-                            leadPhase={lead.phase}
-                            leadAddress={lead.address}
-                            marketingUsers={marketingUsers}
-                            detailHref={`/admin/leads/${lead.id}`}
-                          />
+                          <div className="relative z-10">
+                            <LeadActionButtons
+                              leadId={lead.id}
+                              variant="evaluation-backed"
+                              leadPhase={lead.phase}
+                              leadAddress={lead.address}
+                              marketingUsers={marketingUsers}
+                            />
+                          </div>
                         </div>
                       )
                     })}
@@ -347,7 +361,7 @@ export default async function EvaluationPage({
                       return (
                         <div
                           key={lead.id}
-                          className={`rounded-xl p-4 shadow-sm border ${
+                          className={`relative rounded-xl p-4 shadow-sm border ${
                             isNeedsFix
                               ? 'bg-orange-50 border-orange-300'
                               : isResubmitted
@@ -355,9 +369,10 @@ export default async function EvaluationPage({
                               : 'bg-white border-green-200'
                           }`}
                         >
-                          {/* Status badge row */}
-                          {(isNeedsFix || isResubmitted) && (
-                            <div className="flex items-center gap-1.5 mb-2">
+                          <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="absolute inset-0 rounded-xl z-0" />
+                          {/* Top row: status badge + Details button */}
+                          <div className="flex items-start justify-between mb-1">
+                            <div className="flex items-center gap-1.5">
                               {isNeedsFix && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-white uppercase tracking-wide">
                                   ⚠ Needs Fix
@@ -368,10 +383,17 @@ export default async function EvaluationPage({
                                   ✓ Resubmitted
                                 </span>
                               )}
+                              {!isNeedsFix && !isResubmitted && lead.phase && (
+                                <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">
+                                  {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
+                                </p>
+                              )}
                             </div>
-                          )}
-
-                          {lead.phase && (
+                            <Link href={`/admin/leads/${lead.id}?from=evaluation`} className="relative z-10 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-1 transition-colors shrink-0">
+                              Details
+                            </Link>
+                          </div>
+                          {(isNeedsFix || isResubmitted) && lead.phase && (
                             <p className="text-[10px] font-black text-green-600 uppercase tracking-wider mb-1">
                               {PHASE_FULL_NAMES[lead.phase] ?? lead.phase}
                             </p>
@@ -416,18 +438,10 @@ export default async function EvaluationPage({
                             </div>
                           )}
 
-                          {/* Actions: NEEDS_FIX only shows Details + update comment; others get full buttons */}
-                          <div className="flex flex-wrap gap-1.5">
+                          {/* Actions */}
+                          <div className="relative z-10 flex flex-wrap gap-1.5">
                             {isNeedsFix ? (
-                              <>
-                                <Link
-                                  href={`/admin/leads/${lead.id}`}
-                                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
-                                >
-                                  Details
-                                </Link>
-                                <NeedsFixButton leadId={lead.id} />
-                              </>
+                              <NeedsFixButton leadId={lead.id} />
                             ) : (
                               <>
                                 <LeadActionButtons
@@ -436,7 +450,6 @@ export default async function EvaluationPage({
                                   leadPhase={lead.phase}
                                   leadAddress={lead.address}
                                   marketingUsers={marketingUsers}
-                                  detailHref={`/admin/leads/${lead.id}`}
                                 />
                                 <NeedsFixButton leadId={lead.id} />
                               </>

@@ -23,6 +23,7 @@ type Deal = {
   estimatedValue: number | null
   currentStage: string
   status: string
+  ownerId: string | null
   lead: { address: string; phase: string | null }
   quotes: { total: number | null; status: string }[]
 }
@@ -42,7 +43,8 @@ function DealCard({ deal, basePath }: { deal: Deal; basePath: string }) {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm space-y-2">
+    <div className="relative bg-white rounded-lg border border-gray-200 p-3 shadow-sm space-y-2">
+      <Link href={`${basePath}/deals/${deal.id}`} className="absolute inset-0 rounded-lg z-0" />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">
@@ -52,11 +54,19 @@ function DealCard({ deal, basePath }: { deal: Deal; basePath: string }) {
             <p className="text-xs text-gray-500 truncate">{deal.clientName}</p>
           )}
         </div>
-        {deal.lead.phase && (
-          <span className="shrink-0 text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
-            {deal.lead.phase}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {deal.lead.phase && (
+            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+              {deal.lead.phase}
+            </span>
+          )}
+          <Link
+            href={`${basePath}/deals/${deal.id}`}
+            className="relative z-10 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2 py-0.5 transition-colors"
+          >
+            Open
+          </Link>
+        </div>
       </div>
 
       {deal.estimatedValue != null && (
@@ -74,14 +84,8 @@ function DealCard({ deal, basePath }: { deal: Deal; basePath: string }) {
         </p>
       )}
 
-      <div className="flex items-center gap-1.5 pt-1">
-        <Link
-          href={`${basePath}/deals/${deal.id}`}
-          className="text-[11px] font-semibold px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-        >
-          Open
-        </Link>
-        {hasNext && (
+      {hasNext && (
+        <div className="relative z-10 pt-1">
           <button
             disabled={pending}
             onClick={advance}
@@ -89,8 +93,8 @@ function DealCard({ deal, basePath }: { deal: Deal; basePath: string }) {
           >
             → Next Stage
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -101,15 +105,17 @@ const STATUS_TABS = [
   { key: 'lost', label: 'Lost' },
 ]
 
-export function PipelineBoard({ deals, basePath = '/sales' }: { deals: Deal[]; basePath?: string }) {
+export function PipelineBoard({ deals, currentUserId, basePath = '/sales' }: { deals: Deal[]; currentUserId?: string | null; basePath?: string }) {
   const [statusFilter, setStatusFilter] = useState('active')
   const [phaseFilter, setPhaseFilter] = useState('')
+  const [myOnly, setMyOnly] = useState(false)
 
   const phases = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'MLS']
 
   const filtered = deals.filter(d => {
     if (d.status !== statusFilter) return false
     if (phaseFilter && d.lead.phase !== phaseFilter) return false
+    if (myOnly && d.ownerId !== currentUserId) return false
     return true
   })
 
@@ -122,7 +128,25 @@ export function PipelineBoard({ deals, basePath = '/sales' }: { deals: Deal[]; b
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-900">Sales Pipeline</h1>
-        <span className="text-sm text-gray-500">{filtered.length} deal{filtered.length !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{filtered.length} deal{filtered.length !== 1 ? 's' : ''}</span>
+          {currentUserId && (
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-bold">
+              <button
+                onClick={() => setMyOnly(false)}
+                className={`px-3 py-1.5 transition-colors ${!myOnly ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setMyOnly(true)}
+                className={`px-3 py-1.5 border-l border-gray-200 transition-colors ${myOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+              >
+                Mine
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -173,6 +197,7 @@ export function PipelineBoard({ deals, basePath = '/sales' }: { deals: Deal[]; b
             Clear filter
           </button>
         )}
+
       </div>
 
       {/* Kanban (active only) */}

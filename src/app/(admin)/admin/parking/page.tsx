@@ -237,8 +237,14 @@ export default async function ParkingPage({
                     const contact = lead.contacts[0]
                     const shortAddress = lead.address?.split(',')[0] || ''
                     return (
-                      <div key={lead.id} className={`bg-white border ${colors.cardBorder} rounded-lg p-3 shadow-sm`}>
-                        <p className="text-xs font-black text-gray-900 mb-0.5 truncate">{shortAddress}</p>
+                      <div key={lead.id} className={`relative bg-white border ${colors.cardBorder} rounded-lg p-3 shadow-sm`}>
+                        <Link href={`/admin/leads/${lead.id}?from=parking`} className="absolute inset-0 rounded-lg z-0" />
+                        <div className="flex items-start justify-between mb-0.5">
+                          <p className="text-xs font-black text-gray-900 truncate">{shortAddress}</p>
+                          <Link href={`/admin/leads/${lead.id}?from=parking`} className="relative z-10 ml-1 shrink-0 text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2 py-0.5 transition-colors">
+                            Details
+                          </Link>
+                        </div>
                         {lead.businessName && (
                           <p className="text-[10px] text-gray-500 mb-1.5 truncate">{lead.businessName}</p>
                         )}
@@ -264,14 +270,15 @@ export default async function ParkingPage({
                         <p className="text-[10px] text-gray-400 mb-2">
                           Updated: {lead.updatedAt.toLocaleDateString('en-CA')}
                         </p>
-                        <LeadActionButtons
-                          leadId={lead.id}
-                          variant="parking-board"
-                          leadPhase={lead.phase}
-                          detailHref={`/admin/leads/${lead.id}`}
-                          marketingUsers={marketingUsers}
-                          leadAddress={lead.address}
-                        />
+                        <div className="relative z-10">
+                          <LeadActionButtons
+                            leadId={lead.id}
+                            variant="parking-board"
+                            leadPhase={lead.phase}
+                            marketingUsers={marketingUsers}
+                            leadAddress={lead.address}
+                          />
+                        </div>
                       </div>
                     )
                   })

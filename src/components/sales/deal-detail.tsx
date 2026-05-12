@@ -102,7 +102,7 @@ function LostModal({ dealId, onClose }: { dealId: string; onClose: () => void })
 }
 
 // ── Main DealDetail ────────────────────────────────────────────────────────
-export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { deal: Deal; users: User[]; pipelinePath?: string }) {
+export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline', leadBasePath = '/sales/leads' }: { deal: Deal; users: User[]; pipelinePath?: string; leadBasePath?: string }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const [showLostModal, setShowLostModal] = useState(false)
@@ -300,7 +300,12 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline' }: { 
         {/* Right: lead info + quote summary */}
         <div className="space-y-4">
           <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-2">
-            <h2 className="font-semibold text-gray-700">Lead Info</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-700">Lead Info</h2>
+              <Link href={leadBasePath.startsWith('/admin') ? `${leadBasePath}/${deal.leadId}?from=sales` : `${leadBasePath}/${deal.leadId}`} className="text-[11px] font-bold text-blue-600 bg-white border border-blue-300 hover:bg-blue-600 hover:text-white rounded-md px-2.5 py-0.5 transition-colors">
+                Full Details
+              </Link>
+            </div>
             <p className="text-sm text-gray-600">{deal.lead.address}</p>
             {deal.lead.businessName && <p className="text-sm text-gray-500">{deal.lead.businessName}</p>}
             {deal.lead.phase && (

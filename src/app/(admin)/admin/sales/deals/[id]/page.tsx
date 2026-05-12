@@ -30,5 +30,5 @@ export default async function AdminDealDetailPage({ params }: { params: Promise<
     select: { id: true, firstName: true, lastName: true, email: true },
   })
 
-  return <DealDetail deal={deal} users={users} pipelinePath="/admin/sales" />
+  return <DealDetail deal={deal} users={users} pipelinePath="/admin/sales" leadBasePath="/admin/leads" />
 }

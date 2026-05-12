@@ -34,6 +34,7 @@ export default async function AdminMarketingPage({
       reactivatedCount={reactivatedCount}
       errorCount={errorCount}
       basePath="/admin/marketing"
+      leadBasePath="/admin/leads"
     />
   )
 }

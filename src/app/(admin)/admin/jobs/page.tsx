@@ -48,12 +48,16 @@ function formatPrice(job: {
 export default async function JobBoardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ phase?: string }>
+  searchParams: Promise<{ phase?: string; status?: string }>
 }) {
-  const { phase: phaseFilter } = await searchParams
+  const { phase: phaseFilter, status: statusFilter } = await searchParams
+
+  const where: Record<string, unknown> = {}
+  if (phaseFilter) where.phase = phaseFilter
+  if (statusFilter) where.status = statusFilter
 
   const jobs = await prisma.job.findMany({
-    where: phaseFilter ? { phase: phaseFilter } : undefined,
+    where,
     orderBy: { createdAt: 'desc' },
     include: {
       lead: { select: { id: true, address: true, phase: true } },
@@ -71,6 +75,8 @@ export default async function JobBoardPage({
     OFFER_SENT:  allJobs.filter(j => j.status === 'OFFER_SENT' as never).length,
     ASSIGNED:    allJobs.filter(j => j.status === 'ASSIGNED' as never).length,
     IN_PROGRESS: allJobs.filter(j => j.status === 'IN_PROGRESS' as never).length,
+    COMPLETED:   allJobs.filter(j => j.status === 'COMPLETED' as never).length,
+    VERIFIED:    allJobs.filter(j => j.status === 'VERIFIED' as never).length,
     total:       allJobs.length,
   }
 
@@ -93,22 +99,34 @@ export default async function JobBoardPage({
       {/* Stats */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {([
-          ['PENDING',     'Pending',     'bg-gray-50 border-gray-200 text-gray-700'],
-          ['READY',       'Ready',       'bg-blue-50 border-blue-200 text-blue-700'],
-          ['OFFER_SENT',  'Offer Sent',  'bg-purple-50 border-purple-200 text-purple-700'],
-          ['ASSIGNED',    'Assigned',    'bg-green-50 border-green-200 text-green-700'],
-          ['IN_PROGRESS', 'In Progress', 'bg-amber-50 border-amber-200 text-amber-700'],
-        ] as const).map(([key, label, cls]) => (
-          <div key={key} className={`flex items-center gap-2 border rounded-xl px-4 py-3 shadow-sm ${cls}`}>
-            <span className="text-xs font-bold uppercase tracking-wider opacity-70">{label}:</span>
-            <span className="text-2xl font-black">{counts[key]}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+          ['PENDING',     'Pending',     'bg-gray-50 border-gray-200 text-gray-700',       'hover:bg-gray-100'],
+          ['READY',       'Ready',       'bg-blue-50 border-blue-200 text-blue-700',        'hover:bg-blue-100'],
+          ['OFFER_SENT',  'Offer Sent',  'bg-purple-50 border-purple-200 text-purple-700',  'hover:bg-purple-100'],
+          ['ASSIGNED',    'Assigned',    'bg-green-50 border-green-200 text-green-700',     'hover:bg-green-100'],
+          ['IN_PROGRESS', 'In Progress', 'bg-amber-50 border-amber-200 text-amber-700',     'hover:bg-amber-100'],
+          ['COMPLETED',   'Completed',   'bg-teal-50 border-teal-200 text-teal-700',        'hover:bg-teal-100'],
+          ['VERIFIED',    'Verified',    'bg-emerald-50 border-emerald-200 text-emerald-700', 'hover:bg-emerald-100'],
+        ] as const).map(([key, label, cls, hover]) => {
+          const isActive = statusFilter === key
+          return (
+            <Link
+              key={key}
+              href={isActive ? '/admin/jobs' : `/admin/jobs?status=${key}`}
+              className={`flex items-center gap-2 border rounded-xl px-4 py-3 shadow-sm transition-colors ${cls} ${isActive ? 'ring-2 ring-offset-1 ring-current' : hover}`}
+            >
+              <span className="text-xs font-bold uppercase tracking-wider opacity-70">{label}:</span>
+              <span className="text-2xl font-black">{counts[key]}</span>
+            </Link>
+          )
+        })}
+        <Link
+          href="/admin/jobs"
+          className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:bg-slate-100 transition-colors"
+        >
           <Briefcase size={14} className="text-slate-500" />
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total:</span>
           <span className="text-2xl font-black text-slate-700">{counts.total}</span>
-        </div>
+        </Link>
       </div>
 
       {/* Phase Filter */}
@@ -222,7 +240,7 @@ export default async function JobBoardPage({
                     </Link>
                   )}
                   <Link
-                    href={`/admin/leads/${job.lead.id}`}
+                    href={`/admin/leads/${job.lead.id}?from=jobs`}
                     className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     Lead Detail

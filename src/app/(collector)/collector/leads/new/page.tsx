@@ -4,8 +4,13 @@ import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
 import { NewLeadForm } from './form'
 
-export default async function NewLeadPage() {
+export default async function NewLeadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ taskId?: string; lat?: string; lng?: string; address?: string }>
+}) {
   const { user } = await requireCollectorUser()
+  const { taskId, lat, lng, address } = await searchParams
 
   const routeTasks = user.zoneId
     ? await prisma.routeTask.findMany({
@@ -31,6 +36,10 @@ export default async function NewLeadPage() {
         zoneId={user.zoneId}
         zoneName={user.zone?.name ?? null}
         routeTasks={routeTasks}
+        initialTaskId={taskId}
+        initialLat={lat ? parseFloat(lat) : undefined}
+        initialLng={lng ? parseFloat(lng) : undefined}
+        initialAddress={address}
       />
     </div>
   )

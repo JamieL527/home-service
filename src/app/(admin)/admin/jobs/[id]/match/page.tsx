@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { SendOfferButton } from './send-offer-button'
-import { ArrowLeft, MapPin, Wrench, CheckCircle } from 'lucide-react'
+import { MapPin, Wrench, CheckCircle } from 'lucide-react'
 
 const PHASE_LABELS: Record<string, string> = {
   P0: 'Phase 0', P1: 'Phase 1', P2: 'Phase 2',
@@ -31,8 +31,8 @@ export default async function ContractorMatchPage({ params }: { params: Promise<
   if ((job.status as string) !== 'READY') {
     return (
       <div className="animate-fadeIn max-w-2xl">
-        <Link href="/admin/jobs" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 mb-5 transition-colors">
-          <ArrowLeft size={13} /> Back to Jobs
+        <Link href="/admin/jobs" className="inline-flex items-center text-sm text-gray-400 hover:text-gray-700 font-semibold mb-5 transition-colors">
+          ← Jobs
         </Link>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
           <p className="text-sm font-bold text-amber-700">This job is not in READY status.</p>
@@ -71,8 +71,8 @@ export default async function ContractorMatchPage({ params }: { params: Promise<
 
   return (
     <div className="animate-fadeIn max-w-2xl">
-      <Link href="/admin/jobs" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 mb-5 transition-colors">
-        <ArrowLeft size={13} /> Back to Jobs
+      <Link href="/admin/jobs" className="inline-flex items-center text-sm text-gray-400 hover:text-gray-700 font-semibold mb-5 transition-colors">
+        ← Jobs
       </Link>
 
       <div className="mb-6">

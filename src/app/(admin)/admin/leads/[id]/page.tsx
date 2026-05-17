@@ -122,6 +122,7 @@ const BACK_LINKS: Record<string, { href: string; label: string }> = {
   parking:    { href: '/admin/parking',    label: '← Parking' },
   marketing:  { href: '/admin/marketing',  label: '← Marketing' },
   sales:      { href: '/admin/sales',      label: '← Sales' },
+  jobs:       { href: '/admin/jobs',       label: '← Jobs' },
 }
 
 export default async function AdminLeadDetailPage({

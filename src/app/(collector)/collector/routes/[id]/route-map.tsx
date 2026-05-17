@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import {
   APIProvider,
   Map as GMap,
+  AdvancedMarker,
   useMap,
 } from '@vis.gl/react-google-maps'
 import { MapPin } from 'lucide-react'
@@ -71,6 +72,16 @@ export default function RouteMap({ apiKey, polygon, color, center }: Props) {
       >
         {polygon.length > 0 && (
           <TerritoryOverlay polygon={polygon} color={color} />
+        )}
+        {polygon.length > 0 && (
+          <AdvancedMarker position={polygon[0]} zIndex={30}>
+            <div className="flex flex-col items-center">
+              <div className="bg-green-600 text-white px-3 py-1 rounded-md text-xs font-black shadow-lg border-2 border-white whitespace-nowrap mb-1">
+                START HERE
+              </div>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#16a34a', border: '2.5px solid white', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }} />
+            </div>
+          </AdvancedMarker>
         )}
         {polygon.length === 0 && (
           <div className="flex items-center justify-center h-full text-gray-400">

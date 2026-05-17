@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useActionState, useMemo } from 'react'
-import { APIProvider, Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps'
+import { APIProvider, Map, AdvancedMarker, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import { createClient } from '@/lib/supabase/client'
 import { createLead } from '@/app/actions/leads'
 import { PhotoGrid } from '@/components/ui/photo-grid'
@@ -142,6 +142,78 @@ function SectionLabel({
   )
 }
 
+// Shows driving directions from origin to destination inside the map (Routes API)
+function DirectionsOverlay({ origin, destination, isVisible, apiKey }: {
+  origin: LatLng
+  destination: LatLng | null
+  isVisible: boolean
+  apiKey: string
+}) {
+  const map = useMap()
+  const geometryLibrary = useMapsLibrary('geometry')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [routePolyline, setRoutePolyline] = useState<any>(null)
+
+  useEffect(() => {
+    if (!map) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+    const pl = new g.maps.Polyline({
+      strokeColor: '#10b981',
+      strokeWeight: 6,
+      strokeOpacity: 0.9,
+      zIndex: 50,
+      map,
+    })
+    setRoutePolyline(pl)
+    return () => pl.setMap(null)
+  }, [map])
+
+  useEffect(() => {
+    if (!routePolyline || !geometryLibrary) return
+    if (!isVisible || !destination) {
+      routePolyline.setPath([])
+      return
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const geoLib = geometryLibrary as any
+    fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline,routes.viewport',
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
+        travelMode: 'DRIVE',
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        const encoded = data.routes?.[0]?.polyline?.encodedPolyline
+        if (!encoded) return
+        const path = geoLib.encoding.decodePath(encoded)
+        routePolyline.setPath(path)
+        const viewport = data.routes?.[0]?.viewport
+        if (viewport && map) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const g = (window as any).google
+          map.fitBounds(new g.maps.LatLngBounds(
+            { lat: viewport.low.latitude, lng: viewport.low.longitude },
+            { lat: viewport.high.latitude, lng: viewport.high.longitude }
+          ))
+        }
+      })
+      .catch(e => console.error('Routes API error:', e))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routePolyline, geometryLibrary, isVisible, destination, origin.lat, origin.lng])
+
+  return null
+}
+
 // Map camera updater component
 function MapCameraUpdater({ coords, pinDropped }: { coords: { lat: number; lng: number }; pinDropped: boolean }) {
   const map = useMap()
@@ -171,21 +243,29 @@ function formatDate(value: string | null | undefined): string {
   return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function NewLeadForm({ zoneId, zoneName, routeTasks = [] }: {
+export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, initialLat, initialLng, initialAddress }: {
   zoneId?: string | null
   zoneName?: string | null
   routeTasks?: FormRouteTask[]
+  initialTaskId?: string
+  initialLat?: number
+  initialLng?: number
+  initialAddress?: string
 }) {
-  // View state: 'map' | 'form'
-  const [view, setView] = useState<'map' | 'form'>('map')
+  const hasPrefilledLocation = initialLat != null && initialLng != null
 
-  // Selected route task overlay
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  // View state: 'map' | 'form' — skip map if location already selected on route map
+  const [view, setView] = useState<'map' | 'form'>(hasPrefilledLocation ? 'form' : 'map')
+
+  // Selected route task overlay — pre-select if coming from a route task
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId ?? null)
 
   // Map related state
-  const [address, setAddress] = useState('')
-  const [location, setLocation] = useState(defaultCenter)
-  const [pinDropped, setPinDropped] = useState(false)
+  const [address, setAddress] = useState(initialAddress ?? '')
+  const [location, setLocation] = useState(
+    hasPrefilledLocation ? { lat: initialLat!, lng: initialLng! } : defaultCenter
+  )
+  const [pinDropped, setPinDropped] = useState(hasPrefilledLocation)
   const [isLocating, setIsLocating] = useState(false)
   const [navigatingToStart, setNavigatingToStart] = useState(false)
   
@@ -714,7 +794,33 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [] }: {
                 if (!task) return null
                 const poly = task.polygon as LatLng[]
                 if (!Array.isArray(poly) || !poly.length) return null
-                return <TaskPolygonOverlay polygon={poly} color={task.color} name={task.name} />
+                return (
+                  <>
+                    <TaskPolygonOverlay polygon={poly} color={task.color} name={task.name} />
+                    <AdvancedMarker position={poly[0]} zIndex={30}>
+                      <div className="flex flex-col items-center">
+                        <div className="bg-green-600 text-white px-3 py-1 rounded-md text-xs font-black shadow-lg border-2 border-white whitespace-nowrap mb-1">
+                          START HERE
+                        </div>
+                        <div style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: '#16a34a', border: '2.5px solid white', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }} />
+                      </div>
+                    </AdvancedMarker>
+                  </>
+                )
+              })()}
+              {/* Directions: current location → task start point */}
+              {(() => {
+                const task = routeTasks.find(t => t.id === selectedTaskId)
+                const poly = task?.polygon as LatLng[] | undefined
+                const startPt = Array.isArray(poly) ? poly[0] ?? null : null
+                return (
+                  <DirectionsOverlay
+                    origin={location}
+                    destination={startPt}
+                    isVisible={navigatingToStart && pinDropped}
+                    apiKey={GOOGLE_MAPS_API_KEY}
+                  />
+                )
               })()}
             </Map>
 
@@ -733,7 +839,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [] }: {
 
           {/* 底部操作区 */}
           <div className="p-6 bg-white border-t border-gray-200 z-10 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-            {/* Use current GPS location */}
+            {/* Route to Start Point */}
             {!navigatingToStart && (
               <button
                 onClick={handleRouteToStart}
@@ -742,16 +848,16 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [] }: {
                 {isLocating ? (
                   <Loader2 size={18} className="animate-spin mr-2" />
                 ) : (
-                  <Crosshair size={18} className="mr-2" />
+                  <Navigation size={18} className="mr-2" />
                 )}
-                {isLocating ? 'Finding you...' : 'Use My Current Location'}
+                {isLocating ? 'Finding you...' : 'Route to Start Point'}
               </button>
             )}
 
-            {/* Location pinned indicator */}
+            {/* Navigation active */}
             {navigatingToStart && (
               <div className="w-full mb-4 py-3 rounded-xl font-bold bg-green-50 text-green-700 border border-green-200 flex items-center justify-center">
-                <CheckCircle size={18} className="mr-2" /> Location Pinned
+                <CheckCircle size={18} className="mr-2" /> Navigation Active
               </div>
             )}
             

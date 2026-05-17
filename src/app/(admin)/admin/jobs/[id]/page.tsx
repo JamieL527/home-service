@@ -6,7 +6,6 @@ import { prisma } from '@/lib/prisma'
 import { updateJobDetails } from '@/app/actions/jobs-admin'
 import { VerifyButton } from './verify-button'
 import { PhotoGrid } from '@/components/ui/photo-grid'
-import { ArrowLeft } from 'lucide-react'
 
 const PHASE_LABELS: Record<string, string> = {
   P0: 'Phase 0: Survey', P1: 'Phase 1: Foundation', P2: 'Phase 2: Framing',
@@ -145,11 +144,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     <div className="animate-fadeIn max-w-2xl">
       {/* Back */}
       <div className="flex items-center justify-between mb-5">
-        <Link href="/admin/jobs" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-          <ArrowLeft size={13} /> Back to Jobs
+        <Link href="/admin/jobs" className="inline-flex items-center text-sm text-gray-400 hover:text-gray-700 font-semibold transition-colors">
+          ← Jobs
         </Link>
         <Link
-          href={`/admin/leads/${job.lead.id}`}
+          href={`/admin/leads/${job.lead.id}?from=jobs`}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
         >
           View Lead Detail →

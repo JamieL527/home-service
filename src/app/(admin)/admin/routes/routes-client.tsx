@@ -72,11 +72,14 @@ function DrawingOverlay({ vertices, active, color }: { vertices: LatLng[]; activ
     <>
       {vertices.map((v, i) => (
         <AdvancedMarker key={i} position={v} zIndex={20}>
-          <div style={{
-            width: i === 0 ? 16 : 10, height: i === 0 ? 16 : 10,
-            borderRadius: '50%', backgroundColor: color,
-            border: '2.5px solid white', boxShadow: '0 1px 5px rgba(0,0,0,0.4)',
-          }} />
+          {i === 0 ? (
+            <div className="flex flex-col items-center">
+              <div className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-black shadow-lg border border-white mb-1">START</div>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: '#16a34a', border: '2.5px solid white', boxShadow: '0 1px 5px rgba(0,0,0,0.4)' }} />
+            </div>
+          ) : (
+            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, border: '2.5px solid white', boxShadow: '0 1px 5px rgba(0,0,0,0.4)' }} />
+          )}
         </AdvancedMarker>
       ))}
     </>

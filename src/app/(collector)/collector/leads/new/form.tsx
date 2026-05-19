@@ -10,7 +10,7 @@ import {
   Plus, Globe, X, Save, RefreshCw, Layers, Star,
   Crosshair, Loader2, ChevronLeft, ChevronRight, CheckCircle, Mic,
   Navigation, Database, Mail, ScanText, Phone, AtSign,
-  Building2, Link, Route,
+  Building2, Link, Route, Pencil, Search,
 } from 'lucide-react'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
@@ -99,7 +99,6 @@ function TaskPolygonOverlay({ polygon, color, name }: { polygon: LatLng[]; color
       fillColor: color,
       fillOpacity: 0.18,
       zIndex: 5,
-      clickable: false,
     })
     fill.setMap(map)
     return () => fill.setMap(null)
@@ -268,6 +267,8 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
   const [pinDropped, setPinDropped] = useState(hasPrefilledLocation)
   const [isLocating, setIsLocating] = useState(false)
   const [navigatingToStart, setNavigatingToStart] = useState(false)
+  const [isEditingAddress, setIsEditingAddress] = useState(false)
+  const [addressInput, setAddressInput] = useState('')
   
   // Form state
   const [state, action, isPending] = useActionState(createLead, null)
@@ -690,6 +691,28 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
     setSupplyList(prev => prev.map((s, i) => i === prev.length - 1 ? { ...s, [field]: value } : s))
   }
 
+  // Forward geocode a typed address and move the pin
+  const searchAddress = async (query: string) => {
+    if (!query.trim()) return
+    setIsLocating(true)
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&language=en`
+      )
+      const data = await response.json()
+      if (data.results && data.results.length > 0) {
+        const result = data.results[0]
+        setLocation({ lat: result.geometry.location.lat, lng: result.geometry.location.lng })
+        setAddress(result.formatted_address)
+        setPinDropped(true)
+      }
+    } catch (e) {
+      console.error('Geocoding error:', e)
+    } finally {
+      setIsLocating(false)
+    }
+  }
+
   // Route to start point
   const handleRouteToStart = () => {
     if (!pinDropped) {
@@ -861,20 +884,61 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
               </div>
             )}
             
-            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
-              <div className="flex items-center gap-3">
-                <MapPin size={20} className={pinDropped ? 'text-red-500' : 'text-blue-500'} />
-                <div>
-                  <div className="font-bold text-gray-900 text-sm">
-                    {pinDropped ? (address.split(',')[0] || 'Location Selected') : 'Ready to collect'}
+            <div className="flex items-center bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 gap-3">
+              <MapPin size={20} className={`shrink-0 ${pinDropped ? 'text-red-500' : 'text-blue-500'}`} />
+              <div className="flex-1 min-w-0">
+                {pinDropped && isEditingAddress ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={addressInput}
+                      onChange={e => setAddressInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { setIsEditingAddress(false); searchAddress(addressInput) }
+                        if (e.key === 'Escape') setIsEditingAddress(false)
+                      }}
+                      onBlur={() => setIsEditingAddress(false)}
+                      className="flex-1 text-sm font-bold text-gray-900 bg-white border border-blue-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => { setIsEditingAddress(false); searchAddress(addressInput) }}
+                      className="shrink-0 p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    >
+                      <Search size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => setIsEditingAddress(false)}
+                      className="shrink-0 p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {pinDropped
-                      ? address.split(',').slice(1).join(',').trim() || 'Tap map to adjust location'
-                      : 'Tap anywhere on the map to pin a location'}
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="font-bold text-gray-900 text-sm truncate">
+                      {pinDropped ? (address.split(',')[0] || 'Location Selected') : 'Ready to collect'}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {pinDropped
+                        ? address.split(',').slice(1).join(',').trim() || 'Tap map to adjust location'
+                        : 'Tap anywhere on the map to pin a location'}
+                    </div>
+                  </>
+                )}
               </div>
+              {pinDropped && !isEditingAddress && (
+                <button
+                  type="button"
+                  onClick={() => { setAddressInput(address); setIsEditingAddress(true) }}
+                  className="shrink-0 p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
+                >
+                  <Pencil size={15} />
+                </button>
+              )}
             </div>
 
             <button

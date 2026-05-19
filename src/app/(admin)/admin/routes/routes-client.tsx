@@ -6,9 +6,9 @@ import {
   Map as GMap,
   AdvancedMarker,
   useMap,
-  type MapMouseEvent,
+  useMapsLibrary,
 } from '@vis.gl/react-google-maps'
-import { MapPin, Trash2, CheckCircle, Route, X, Undo2, PenLine, Map, Pencil, RotateCcw } from 'lucide-react'
+import { MapPin, Trash2, CheckCircle, Route, X, PenLine, Map, Pencil, RotateCcw } from 'lucide-react'
 import {
   createRouteTask, deleteRouteTask, updateRouteTaskStatus,
   renameRouteTask, adminReleaseRouteTask,
@@ -36,78 +36,58 @@ function centroid(poly: LatLng[]): LatLng {
   return { lat: s.lat / poly.length, lng: s.lng / poly.length }
 }
 
-// ── Live drawing overlay (click-to-vertex) ────────────────────────────────────
-function DrawingOverlay({ vertices, active, color }: { vertices: LatLng[]; active: boolean; color: string }) {
+// ── DrawingManager overlay (Google Maps built-in polygon drawing) ─────────────
+function DrawingManagerOverlay({ active, color, onComplete }: {
+  active: boolean
+  color: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onComplete: (path: LatLng[], polygon: any) => void
+}) {
   const map = useMap()
+  const drawingLib = useMapsLibrary('drawing')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const onCompleteRef = useRef<(path: LatLng[], polygon: any) => void>(onComplete)
+  onCompleteRef.current = onComplete
 
   useEffect(() => {
-    if (!map) return
-    map.setOptions({ draggableCursor: active ? 'crosshair' : '' })
-  }, [map, active])
-
-  useEffect(() => {
-    if (!map || !active || vertices.length < 2) return
+    if (!active || !map || !drawingLib) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = (window as any).google
     if (!g) return
-    const overlays: { setMap: (m: unknown) => void }[] = []
-    const pl = new g.maps.Polyline({
-      path: [...vertices, vertices[0]],
-      strokeColor: color, strokeWeight: 3, strokeOpacity: 0.9, zIndex: 10,
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const manager = new (drawingLib as any).DrawingManager({
+      drawingMode: g.maps.drawing.OverlayType.POLYGON,
+      drawingControl: false,
+      polygonOptions: {
+        fillColor: color,
+        fillOpacity: 0.2,
+        strokeColor: color,
+        strokeWeight: 3,
+        editable: true,
+        zIndex: 10,
+      },
     })
-    pl.setMap(map)
-    overlays.push(pl)
-    if (vertices.length >= 3) {
-      const pg = new g.maps.Polygon({
-        paths: vertices, fillColor: color, fillOpacity: 0.15, strokeOpacity: 0, zIndex: 9,
-      })
-      pg.setMap(map)
-      overlays.push(pg)
+    manager.setMap(map)
+    map.setOptions({ draggableCursor: 'crosshair' })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const listener = g.maps.event.addListener(manager, 'polygoncomplete', (polygon: any) => {
+      manager.setDrawingMode(null)
+      manager.setMap(null)
+      map.setOptions({ draggableCursor: '' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const path = polygon.getPath().getArray().map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
+      onCompleteRef.current(path, polygon)
+    })
+
+    return () => {
+      g.maps.event.removeListener(listener)
+      manager.setMap(null)
+      map.setOptions({ draggableCursor: '' })
     }
-    return () => overlays.forEach(o => o.setMap(null))
-  }, [map, active, vertices, color])
+  }, [active, map, drawingLib, color]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!active) return null
-  return (
-    <>
-      {vertices.map((v, i) => (
-        <AdvancedMarker key={i} position={v} zIndex={20}>
-          {i === 0 ? (
-            <div className="flex flex-col items-center">
-              <div className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-black shadow-lg border border-white mb-1">START</div>
-              <div style={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: '#16a34a', border: '2.5px solid white', boxShadow: '0 1px 5px rgba(0,0,0,0.4)' }} />
-            </div>
-          ) : (
-            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, border: '2.5px solid white', boxShadow: '0 1px 5px rgba(0,0,0,0.4)' }} />
-          )}
-        </AdvancedMarker>
-      ))}
-    </>
-  )
-}
-
-// ── Draft polygon preview (save form open) ────────────────────────────────────
-function DraftPolygonOverlay({ paths, color }: { paths: LatLng[] | null; color: string }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!map || !paths || paths.length < 3) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const g = (window as any).google
-    if (!g) return
-    const overlays: { setMap: (m: unknown) => void }[] = []
-    const pl = new g.maps.Polyline({
-      path: [...paths, paths[0]],
-      strokeColor: color, strokeWeight: 3, strokeOpacity: 0.85, zIndex: 10,
-    })
-    pl.setMap(map)
-    overlays.push(pl)
-    const pg = new g.maps.Polygon({
-      paths, fillColor: color, fillOpacity: 0.2, strokeOpacity: 0, zIndex: 9,
-    })
-    pg.setMap(map)
-    overlays.push(pg)
-    return () => overlays.forEach(o => o.setMap(null))
-  }, [map, paths, color])
   return null
 }
 
@@ -159,58 +139,59 @@ function MapController({ target }: { target: { pos: LatLng; t: number } | null }
 interface Props { apiKey: string; initialTasks: RouteTask[]; zones: Zone[] }
 
 export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
-  const [mobileTab, setMobileTab]     = useState<'tasks' | 'map'>('tasks')
-  const [tasks, setTasks]             = useState<RouteTask[]>(initialTasks)
-  const [selectedId, setSelectedId]   = useState<string | null>(null)
-  const [drawing, setDrawing]         = useState(false)
-  const [vertices, setVertices]       = useState<LatLng[]>([])
-  const [draftPaths, setDraftPaths]   = useState<LatLng[] | null>(null)
-  const [draftColor, setDraftColor]   = useState(PRESET_COLORS[0])
-  const [taskName, setTaskName]       = useState('')
-  const [zoneId, setZoneId]           = useState(zones[0]?.id ?? '')
-  const [filterZone, setFilterZone]   = useState('')
+  const [mobileTab, setMobileTab]       = useState<'tasks' | 'map'>('tasks')
+  const [tasks, setTasks]               = useState<RouteTask[]>(initialTasks)
+  const [selectedId, setSelectedId]     = useState<string | null>(null)
+  const [drawing, setDrawing]           = useState(false)
+  const [draftReady, setDraftReady]     = useState(false)
+  const [draftVertexCount, setDraftVertexCount] = useState(0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const drawnPolygon                    = useRef<any>(null)
+  const [draftColor, setDraftColor]     = useState(PRESET_COLORS[0])
+  const [taskName, setTaskName]         = useState('')
+  const [zoneId, setZoneId]             = useState(zones[0]?.id ?? '')
+  const [filterZone, setFilterZone]     = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [panTarget, setPanTarget]     = useState<{ pos: LatLng; t: number } | null>(null)
-  const [isPending, startTransition]  = useTransition()
+  const [panTarget, setPanTarget]       = useState<{ pos: LatLng; t: number } | null>(null)
+  const [isPending, startTransition]    = useTransition()
 
-  const handleMapClick = useCallback((e: MapMouseEvent) => {
-    if (!drawing) return
-    const ll = e.detail.latLng
-    if (!ll) return
-    setVertices(prev => [...prev, { lat: ll.lat, lng: ll.lng }])
-  }, [drawing])
+  // Sync polygon color when user changes color picker
+  useEffect(() => {
+    if (drawnPolygon.current) {
+      drawnPolygon.current.setOptions({ fillColor: draftColor, strokeColor: draftColor })
+    }
+  }, [draftColor])
 
   const handleStartDrawing = () => {
-    setDraftPaths(null)
-    setVertices([])
+    if (drawnPolygon.current) { drawnPolygon.current.setMap(null); drawnPolygon.current = null }
+    setDraftReady(false)
     setDrawing(true)
     setSelectedId(null)
   }
 
-  const handleUndoVertex = () => setVertices(prev => prev.slice(0, -1))
+  const handleCancelDrawing = () => setDrawing(false)
 
-  const handleClosePolygon = () => {
-    if (vertices.length < 3) return
-    setDraftPaths([...vertices])
-    setVertices([])
+  const handlePolygonComplete = useCallback((path: LatLng[], polygon: unknown) => {
+    drawnPolygon.current = polygon
+    setDraftVertexCount(path.length)
     setDrawing(false)
-  }
-
-  const handleCancelDrawing = () => {
-    setVertices([])
-    setDrawing(false)
-  }
+    setDraftReady(true)
+  }, [])
 
   const handleDiscardDraft = () => {
-    setDraftPaths(null)
+    if (drawnPolygon.current) { drawnPolygon.current.setMap(null); drawnPolygon.current = null }
+    setDraftReady(false)
+    setDraftVertexCount(0)
     setTaskName('')
     setDraftColor(PRESET_COLORS[0])
   }
 
   const handleSave = () => {
-    if (!taskName.trim() || !draftPaths || !zoneId) return
+    if (!taskName.trim() || !drawnPolygon.current || !zoneId) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentPath = drawnPolygon.current.getPath().getArray().map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
     startTransition(async () => {
-      const result = await createRouteTask({ name: taskName.trim(), polygon: draftPaths, color: draftColor, zoneId })
+      const result = await createRouteTask({ name: taskName.trim(), polygon: currentPath, color: draftColor, zoneId })
       if (result.ok) window.location.reload()
     })
   }
@@ -300,7 +281,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
 
           {/* Draw button (desktop) */}
           <div className="p-3 border-b border-gray-200 shrink-0 hidden sm:block">
-            {!drawing && !draftPaths && (
+            {!drawing && !draftReady && (
               <button onClick={handleStartDrawing}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition-colors">
                 <PenLine size={15} />
@@ -309,24 +290,11 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
             )}
             {drawing && (
               <div className="rounded-lg bg-purple-50 border border-purple-200 px-3 py-2.5 text-xs text-purple-800 space-y-2">
-                <p className="font-semibold">Click on the map to add vertices.</p>
-                <p className="text-purple-500">{vertices.length} point{vertices.length !== 1 ? 's' : ''} added{vertices.length >= 3 ? ' — ready to close' : ''}</p>
-                <div className="flex gap-2">
-                  <button onClick={handleUndoVertex} disabled={vertices.length === 0}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold disabled:opacity-30 transition-colors">
-                    <Undo2 size={12} /> Undo
-                  </button>
-                  <button onClick={handleCancelDrawing}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded bg-gray-100 hover:bg-red-50 text-red-600 text-xs font-bold transition-colors">
-                    <X size={12} /> Cancel
-                  </button>
-                </div>
-                {vertices.length >= 3 && (
-                  <button onClick={handleClosePolygon}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition-colors">
-                    <CheckCircle size={14} /> Done
-                  </button>
-                )}
+                <p className="font-semibold">Click to add vertices. Double-click to close.</p>
+                <button onClick={handleCancelDrawing}
+                  className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-gray-100 hover:bg-red-50 text-red-600 text-xs font-bold transition-colors">
+                  <X size={12} /> Cancel
+                </button>
               </div>
             )}
           </div>
@@ -416,11 +384,9 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
               mapId="admin-routes-map"
               style={{ width: '100%', flex: 1 }}
               gestureHandling="greedy"
-              onClick={handleMapClick}
             >
               <MapController target={panTarget} />
-              <DrawingOverlay vertices={vertices} active={drawing} color={draftColor} />
-              <DraftPolygonOverlay paths={draftPaths} color={draftColor} />
+              <DrawingManagerOverlay active={drawing} color={draftColor} onComplete={handlePolygonComplete} />
               <TaskPolygons tasks={tasks} selectedId={selectedId} drawing={drawing} onSelect={handleSelectById} />
             </GMap>
           </APIProvider>
@@ -428,7 +394,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
           {/* Mobile: Draw controls overlay */}
           <div className="sm:hidden absolute top-3 left-3 z-10 pointer-events-none">
             <div className="pointer-events-auto">
-              {!drawing && !draftPaths && (
+              {!drawing && !draftReady && (
                 <button onClick={() => { handleStartDrawing(); setMobileTab('map') }}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-lg transition-colors">
                   <PenLine size={15} /> Draw New Zone
@@ -436,35 +402,23 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
               )}
               {drawing && (
                 <div className="rounded-xl bg-[#0f172a]/95 border border-purple-500/40 px-3 py-3 text-xs text-purple-200 space-y-2 min-w-[170px] shadow-xl">
-                  <p className="font-semibold">Tap map to add points</p>
-                  <p className="text-purple-400">{vertices.length} point{vertices.length !== 1 ? 's' : ''}{vertices.length >= 3 ? ' — ready to close' : ''}</p>
-                  <div className="flex gap-2">
-                    <button onClick={handleUndoVertex} disabled={vertices.length === 0}
-                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs font-bold disabled:opacity-30 transition-colors">
-                      <Undo2 size={12} /> Undo
-                    </button>
-                    <button onClick={handleCancelDrawing}
-                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded bg-white/10 hover:bg-red-900/40 text-xs font-bold transition-colors">
-                      <X size={12} /> Cancel
-                    </button>
-                  </div>
-                  {vertices.length >= 3 && (
-                    <button onClick={handleClosePolygon}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-sm font-bold transition-colors">
-                      <CheckCircle size={14} /> Done
-                    </button>
-                  )}
+                  <p className="font-semibold">Tap to add points</p>
+                  <p className="text-purple-400">Double-tap to close</p>
+                  <button onClick={handleCancelDrawing}
+                    className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-white/10 hover:bg-red-900/40 text-xs font-bold transition-colors">
+                    <X size={12} /> Cancel
+                  </button>
                 </div>
               )}
             </div>
           </div>
 
           {/* Save panel */}
-          {draftPaths && (
+          {draftReady && (
             <div className="absolute bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-5 z-10 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.6)]">
               <p className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <MapPin size={13} />
-                Save New Territory · {draftPaths.length} vertices
+                Save New Territory · {draftVertexCount} vertices · drag to adjust
               </p>
               <input type="text" placeholder="Task name (e.g. North York Block A)"
                 value={taskName} onChange={e => setTaskName(e.target.value)}
@@ -490,7 +444,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
                   className="w-1/3 py-3 rounded-xl font-bold bg-white/10 hover:bg-white/20 text-white text-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <X size={15} /> Discard
                 </button>
-                <button onClick={handleSave} disabled={isPending || !taskName.trim() || !zoneId}
+                <button onClick={handleSave} disabled={isPending || !taskName.trim() || !zoneId || !draftReady}
                   className="w-2/3 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white text-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-[0_0_15px_rgba(139,92,246,0.5)]">
                   <CheckCircle size={15} />
                   {isPending ? 'Saving…' : 'Publish to Collectors'}

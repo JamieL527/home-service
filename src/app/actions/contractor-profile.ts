@@ -25,6 +25,7 @@ export async function updateContractorProfile(data: {
   contactPhone: string
   website: string
   address: string
+  logoUrl?: string
 }): Promise<{ ok?: boolean; error?: string }> {
   const company = await getActiveCompany()
   if (!company) return { error: 'Unauthorized' }
@@ -38,6 +39,7 @@ export async function updateContractorProfile(data: {
       contactPhone: data.contactPhone.trim() || null,
       website: normalizeUrl(data.website),
       address: data.address.trim() || null,
+      logoUrl: data.logoUrl?.trim() || null,
     },
   })
 

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { updateContractorProfile } from '@/app/actions/contractor-profile'
+import { createClient } from '@/lib/supabase/client'
 
 type Company = {
   name: string
@@ -16,6 +17,7 @@ type Company = {
   contactPhone: string | null
   website: string | null
   address: string | null
+  logoUrl: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -75,6 +77,28 @@ export default function ProfileForm({ company }: { company: Company }) {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [logoUrl, setLogoUrl] = useState(company.logoUrl ?? '')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoRef = useRef<HTMLInputElement>(null)
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop() ?? 'png'
+      const path = `logos/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('contractor-logos').upload(path, file, { upsert: false })
+      if (uploadError) throw uploadError
+      const { data } = supabase.storage.from('contractor-logos').getPublicUrl(path)
+      setLogoUrl(data.publicUrl)
+    } catch {
+      setError('Logo upload failed. Please try again.')
+    } finally {
+      setLogoUploading(false)
+    }
+  }
 
   function handleCancel() {
     setEditing(false)
@@ -92,6 +116,7 @@ export default function ProfileForm({ company }: { company: Company }) {
       contactPhone: fd.get('contactPhone') as string,
       website: fd.get('website') as string,
       address: fd.get('address') as string,
+      logoUrl,
     }
     setError(null)
     setSuccess(false)
@@ -148,6 +173,53 @@ export default function ProfileForm({ company }: { company: Company }) {
           <ReadonlyField label="Trade / Service Type" value={company.tradeType} />
           <ReadonlyField label="WSIB Number" value={company.wsibNumber} />
           <ReadonlyField label="Insurance Number" value={company.insuranceNumber} />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Company Logo</p>
+          <div className="flex items-center gap-4">
+            {logoUrl
+              ? <img src={logoUrl} alt="Company logo" className="h-14 w-14 rounded-lg object-contain border border-border bg-muted" />
+              : <div className="h-14 w-14 rounded-lg border border-dashed border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">No logo</div>
+            }
+            <div className="space-y-1">
+              <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoFile} />
+              <button
+                type="button"
+                onClick={() => logoRef.current?.click()}
+                disabled={logoUploading}
+                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {logoUploading ? 'Uploading…' : logoUrl ? 'Change Logo' : 'Upload Logo'}
+              </button>
+              {logoUrl && (
+                <button type="button" onClick={() => setLogoUrl('')} className="block text-xs text-muted-foreground hover:text-destructive">
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          {logoUrl && !editing && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => startTransition(async () => {
+                await updateContractorProfile({
+                  contactName: company.contactName ?? '',
+                  contactTitle: company.contactTitle ?? '',
+                  contactEmail: company.contactEmail ?? '',
+                  contactPhone: company.contactPhone ?? '',
+                  website: company.website ?? '',
+                  address: company.address ?? '',
+                  logoUrl,
+                })
+                setSuccess(true)
+              })}
+              className="mt-2 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+            >
+              {isPending ? 'Saving…' : 'Save Logo'}
+            </button>
+          )}
         </div>
 
         <p className="text-xs text-muted-foreground border-t border-border pt-3">

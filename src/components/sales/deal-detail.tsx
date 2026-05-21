@@ -43,7 +43,16 @@ type Deal = {
   siteVisitDate: Date | null
   deadline: Date | null
   negotiationDate: Date | null
-  lead: { address: string; phase: string | null; contacts: LeadContact[]; businessName: string | null; initialComment: string | null; marketingNote: string | null }
+  lead: {
+    address: string
+    phase: string | null
+    source?: string | null
+    contacts: LeadContact[]
+    businessName: string | null
+    initialComment: string | null
+    marketingNote: string | null
+    jobs?: { serviceType: string | null; scope: string | null; contractorType: string | null; timeline: string | null }[]
+  }
   quotes: Quote[]
 }
 type User = { id: string; firstName: string | null; lastName: string | null; email: string }
@@ -117,6 +126,8 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline', lead
   const [deadline, setDeadline] = useState(fmtDate(deal.deadline))
   const [negotiationDate, setNegotiationDate] = useState(fmtDate(deal.negotiationDate))
 
+  const isReferral = deal.lead.source === 'referral'
+  const referralJob = deal.lead.jobs?.[0] ?? null
   const isDone = deal.status === 'won' || deal.status === 'lost'
   const stageIdx = STAGE_ORDER.indexOf(deal.currentStage)
   const acceptedQuote = deal.quotes.find(q => q.status === 'accepted')
@@ -210,22 +221,20 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline', lead
       )}
 
       {/* Estimation Workspace banner */}
-      {!isDone && (
-        <Link
-          href={estimationPath}
-          className="flex items-center justify-between w-full px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:bg-yellow-100 transition-colors"
-        >
-          <div>
-            <p className="text-sm font-black text-yellow-800">Estimation Workspace</p>
-            <p className="text-xs text-yellow-600">
-              {deal.quotes.length === 0
-                ? 'Upload plans, record measurements, create quotes'
-                : `${deal.quotes.length} quote${deal.quotes.length !== 1 ? 's' : ''}${acceptedQuote ? ' · 1 accepted' : ''} · Click to manage`}
-            </p>
-          </div>
-          <span className="text-yellow-600 font-bold text-lg">→</span>
-        </Link>
-      )}
+      <Link
+        href={estimationPath}
+        className="flex items-center justify-between w-full px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:bg-yellow-100 transition-colors"
+      >
+        <div>
+          <p className="text-sm font-black text-yellow-800">Estimation Workspace</p>
+          <p className="text-xs text-yellow-600">
+            {deal.quotes.length === 0
+              ? 'Upload plans, record measurements, create quotes'
+              : `${deal.quotes.length} quote${deal.quotes.length !== 1 ? 's' : ''}${acceptedQuote ? ' · 1 accepted' : ''} · Click to view`}
+          </p>
+        </div>
+        <span className="text-yellow-600 font-bold text-lg">→</span>
+      </Link>
 
       <div className="grid grid-cols-2 gap-6">
         {/* Left: editable fields */}
@@ -339,15 +348,44 @@ export function DealDetail({ deal, users, pipelinePath = '/sales/pipeline', lead
             )}
           </div>
 
+          {/* Referral Job Info (read-only) */}
+          {isReferral && referralJob && (
+            <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-2">
+              <h2 className="font-semibold text-gray-700">Job Info</h2>
+              {referralJob.serviceType && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Service Type</p>
+                  <p className="text-sm text-gray-700">{referralJob.serviceType}</p>
+                </div>
+              )}
+              {referralJob.contractorType && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Contractor Type</p>
+                  <p className="text-sm text-gray-700">{referralJob.contractorType}</p>
+                </div>
+              )}
+              {referralJob.scope && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Scope of Work</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{referralJob.scope}</p>
+                </div>
+              )}
+              {referralJob.timeline && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Timeline</p>
+                  <p className="text-sm text-gray-700">{referralJob.timeline}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quote summary (read-only) */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-gray-700">Quote Summary</h2>
-              {!isDone && (
-                <Link href={estimationPath} className="text-xs text-blue-600 hover:underline font-semibold">
-                  Manage →
-                </Link>
-              )}
+              <Link href={estimationPath} className="text-xs text-blue-600 hover:underline font-semibold">
+                {isDone ? 'View →' : 'Manage →'}
+              </Link>
             </div>
 
             {deal.quotes.length === 0 ? (

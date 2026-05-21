@@ -19,6 +19,7 @@ export default async function ProfilePage() {
         contactPhone: company.contactPhone,
         website: company.website,
         address: company.address,
+        logoUrl: company.logoUrl,
       }}
     />
   )

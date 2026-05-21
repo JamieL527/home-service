@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { X, Plus, Trash2, Upload, FileText, MessageSquare, Ruler, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { addDealPlan, deleteDealPlan, addMeasurement, deleteMeasurement, addComment } from '@/app/actions/estimation'
-import { createQuote, updateQuote, acceptQuote } from '@/app/actions/sales'
+import { createQuote, updateQuote, acceptQuote, updateDeal } from '@/app/actions/sales'
 
 const PLAN_TYPES = ['Floor Plan', 'Elevation', 'Electrical', 'Plumbing', 'HVAC', 'Other']
+const CONTRACTOR_UPLOAD_TYPES = ['Site Photo', 'Field Measurement', 'Reference Image', 'Other']
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
 const MEASUREMENT_TYPES = [
   { key: 'area', label: 'Area', units: ['sq ft', 'sq m'] },
@@ -16,7 +17,7 @@ const MEASUREMENT_TYPES = [
   { key: 'count', label: 'Count', units: ['ea', 'pcs'] },
 ]
 
-type Plan = { id: string; name: string; planType: string; fileUrl: string; fileType: string }
+type Plan = { id: string; name: string; planType: string; fileUrl: string; fileType: string; uploadedByRole: string | null }
 type Measurement = { id: string; label: string; type: string; value: number; unit: string; notes: string | null }
 type Comment = { id: string; content: string; createdAt: Date; author: { id: string; firstName: string | null; lastName: string | null; email: string } }
 type LineItem = { description: string; quantity: number; unitPrice: number }
@@ -27,6 +28,7 @@ type Deal = {
   clientName: string | null
   projectType: string | null
   currentStage: string
+  siteVisitDate: Date | null
   lead: { address: string; phase: string | null }
   plans: Plan[]
   measurements: Measurement[]
@@ -35,12 +37,15 @@ type Deal = {
 }
 
 // ── View Plans Tab ─────────────────────────────────────────────────────────
-function ViewPlansTab({ deal }: { deal: Deal }) {
+function ViewPlansTab({ deal, canUpload, isContractor, readOnly }: { deal: Deal; canUpload: boolean; isContractor: boolean; readOnly?: boolean }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
+  const contractorFileRef = useRef<HTMLInputElement>(null)
   const [planType, setPlanType] = useState(PLAN_TYPES[0])
   const [planName, setPlanName] = useState('')
+  const [contractorPlanType, setContractorPlanType] = useState(CONTRACTOR_UPLOAD_TYPES[0])
+  const [contractorPlanName, setContractorPlanName] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -75,6 +80,36 @@ function ViewPlansTab({ deal }: { deal: Deal }) {
     }
   }
 
+  async function handleContractorFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError('Unsupported file type. Please upload a PDF or image (PNG/JPG/WEBP).')
+      return
+    }
+    setUploadError('')
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop()
+      const path = `deal-plans/${deal.id}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('deal-plans').upload(path, file, { upsert: false })
+      if (error) throw error
+      const { data } = supabase.storage.from('deal-plans').getPublicUrl(path)
+      const fileUrl = data.publicUrl
+      const name = contractorPlanName.trim() || file.name.replace(/\.[^.]+$/, '')
+      startTransition(async () => {
+        await addDealPlan(deal.id, { name, planType: contractorPlanType, fileUrl, fileType: file.type })
+        router.refresh()
+      })
+    } catch {
+      setUploadError('Upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+      if (contractorFileRef.current) contractorFileRef.current.value = ''
+    }
+  }
+
   function remove(planId: string) {
     if (!confirm('Remove this plan?')) return
     startTransition(async () => {
@@ -85,8 +120,8 @@ function ViewPlansTab({ deal }: { deal: Deal }) {
 
   return (
     <div className="space-y-6">
-      {/* Upload */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+      {/* Upload — Sales only */}
+      {canUpload && !readOnly && <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
         <h3 className="text-sm font-black text-gray-800 mb-4">Upload Plan</h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
@@ -121,7 +156,47 @@ function ViewPlansTab({ deal }: { deal: Deal }) {
         </button>
         {uploadError && <p className="mt-2 text-xs text-red-500">{uploadError}</p>}
         <p className="mt-2 text-xs text-gray-400">Supported: PDF, PNG, JPG, WEBP</p>
-      </div>
+      </div>}
+
+      {/* Upload — Contractor */}
+      {isContractor && !readOnly && (
+        <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-5">
+          <h3 className="text-sm font-black text-indigo-800 mb-4">Upload Site Files</h3>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">File Type</label>
+              <select
+                value={contractorPlanType}
+                onChange={e => setContractorPlanType(e.target.value)}
+                className="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+              >
+                {CONTRACTOR_UPLOAD_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Name (optional)</label>
+              <input
+                type="text"
+                value={contractorPlanName}
+                onChange={e => setContractorPlanName(e.target.value)}
+                placeholder="e.g. Living Room"
+                className="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+              />
+            </div>
+          </div>
+          <input ref={contractorFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleContractorFile} className="hidden" />
+          <button
+            disabled={uploading || pending}
+            onClick={() => contractorFileRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+          >
+            <Upload size={14} />
+            {uploading ? 'Uploading…' : 'Choose File'}
+          </button>
+          {uploadError && <p className="mt-2 text-xs text-red-500">{uploadError}</p>}
+          <p className="mt-2 text-xs text-indigo-400">Supported: PDF, PNG, JPG, WEBP</p>
+        </div>
+      )}
 
       {/* Plan list */}
       {deal.plans.length === 0 ? (
@@ -148,13 +223,15 @@ function ViewPlansTab({ deal }: { deal: Deal }) {
                   Open file ↗
                 </a>
               </div>
-              <button
-                disabled={pending}
-                onClick={() => remove(plan.id)}
-                className="shrink-0 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
-              >
-                <Trash2 size={14} />
-              </button>
+              {!readOnly && (canUpload || (isContractor && plan.uploadedByRole === 'CONTRACTOR')) && (
+                <button
+                  disabled={pending}
+                  onClick={() => remove(plan.id)}
+                  className="shrink-0 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -184,7 +261,7 @@ function ViewPlansTab({ deal }: { deal: Deal }) {
 }
 
 // ── Measurements Tab ────────────────────────────────────────────────────────
-function MeasurementsTab({ deal }: { deal: Deal }) {
+function MeasurementsTab({ deal, readOnly }: { deal: Deal; readOnly?: boolean }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
@@ -250,7 +327,7 @@ function MeasurementsTab({ deal }: { deal: Deal }) {
       )}
 
       {/* Add form */}
-      {showForm ? (
+      {!readOnly && showForm ? (
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
           <h3 className="text-sm font-black text-gray-800">Add Measurement</h3>
           <div className="grid grid-cols-3 gap-2">
@@ -329,14 +406,14 @@ function MeasurementsTab({ deal }: { deal: Deal }) {
             </button>
           </div>
         </div>
-      ) : (
+      ) : !readOnly ? (
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
         >
           <Plus size={14} /> Add Measurement
         </button>
-      )}
+      ) : null}
 
       {/* Measurement groups */}
       {deal.measurements.length === 0 ? (
@@ -359,13 +436,15 @@ function MeasurementsTab({ deal }: { deal: Deal }) {
                       {m.notes && <p className="text-xs text-gray-400">{m.notes}</p>}
                     </div>
                     <p className="text-sm font-black text-gray-700 shrink-0">{m.value} {m.unit}</p>
-                    <button
-                      disabled={pending}
-                      onClick={() => remove(m.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40 shrink-0"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        disabled={pending}
+                        onClick={() => remove(m.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -378,7 +457,7 @@ function MeasurementsTab({ deal }: { deal: Deal }) {
 }
 
 // ── Comments Tab ────────────────────────────────────────────────────────────
-function CommentsTab({ deal, currentUserId }: { deal: Deal; currentUserId: string }) {
+function CommentsTab({ deal, currentUserId, readOnly }: { deal: Deal; currentUserId: string; readOnly?: boolean }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const [text, setText] = useState('')
@@ -421,29 +500,31 @@ function CommentsTab({ deal, currentUserId }: { deal: Deal; currentUserId: strin
       )}
 
       {/* Input */}
-      <div className="flex gap-2">
-        <textarea
-          rows={2}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Add a comment or question…"
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
-        />
-        <button
-          disabled={!text.trim() || pending}
-          onClick={submit}
-          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-        >
-          <Send size={15} />
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex gap-2">
+          <textarea
+            rows={2}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Add a comment or question…"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+          />
+          <button
+            disabled={!text.trim() || pending}
+            onClick={submit}
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+          >
+            <Send size={15} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Quote Tab ───────────────────────────────────────────────────────────────
-function QuoteTab({ deal }: { deal: Deal }) {
+function QuoteTab({ deal, isContractor, readOnly }: { deal: Deal; isContractor: boolean; readOnly?: boolean }) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
@@ -480,7 +561,7 @@ function QuoteTab({ deal }: { deal: Deal }) {
 
   return (
     <div className="space-y-4">
-      {!showForm && (
+      {!showForm && !readOnly && (
         <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors">
           <Plus size={14} /> New Quote
         </button>
@@ -515,7 +596,9 @@ function QuoteTab({ deal }: { deal: Deal }) {
           <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" rows={2} placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
           <div className="flex gap-2">
             <button disabled={pending} onClick={() => save(false)} className="px-4 py-2 text-sm font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-40 transition-colors">Save Draft</button>
-            <button disabled={pending} onClick={() => save(true)} className="px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">Submit to Client</button>
+            <button disabled={pending} onClick={() => save(true)} className="px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
+              {isContractor ? 'Submit Quote to Sales' : 'Submit to Client'}
+            </button>
             <button onClick={() => setShowForm(false)} className="ml-auto text-sm text-gray-400 hover:text-gray-600">Cancel</button>
           </div>
         </div>
@@ -531,8 +614,15 @@ function QuoteTab({ deal }: { deal: Deal }) {
         <div key={q.id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-black text-gray-800">Quote v{q.version}</span>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${q.status === 'accepted' ? 'bg-green-100 text-green-700' : q.status === 'submitted' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-              {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              q.status === 'accepted'      ? 'bg-green-100 text-green-700' :
+              q.status === 'submitted'     ? 'bg-blue-100 text-blue-700' :
+              q.status === 'pending_review' ? 'bg-amber-100 text-amber-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>
+              {q.status === 'pending_review'
+                ? isContractor ? 'Submitted' : 'Pending Review'
+                : q.status.charAt(0).toUpperCase() + q.status.slice(1)}
             </span>
           </div>
           {lineItems(q).length > 0 && (
@@ -551,25 +641,62 @@ function QuoteTab({ deal }: { deal: Deal }) {
             <div className="flex justify-between font-black text-gray-800"><span>Total</span><span>{fmtMoney(q.total)}</span></div>
           </div>
           {q.notes && <p className="text-xs text-gray-400 italic">{q.notes}</p>}
-          <div className="flex gap-3">
-            {q.status === 'draft' && (
-              <button disabled={pending} onClick={() => openEdit(q)} className="text-xs font-bold text-blue-600 hover:underline">Edit</button>
-            )}
-            {q.status === 'submitted' && (
-              <button
-                disabled={pending}
-                onClick={() => {
-                  if (!confirm('Mark this quote as accepted? The total will be written to Deal Info.')) return
-                  startTransition(async () => { await acceptQuote(q.id, deal.id); router.refresh() })
-                }}
-                className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
-              >
-                Accept Quote
-              </button>
-            )}
-          </div>
+          {!readOnly && (
+            <div className="flex gap-3">
+              {(q.status === 'draft' || (!isContractor && (q.status === 'submitted' || q.status === 'pending_review'))) && (
+                <button disabled={pending} onClick={() => openEdit(q)} className="text-xs font-bold text-blue-600 hover:underline">Edit</button>
+              )}
+              {(q.status === 'submitted' || q.status === 'pending_review') && !isContractor && (
+                <button
+                  disabled={pending}
+                  onClick={() => {
+                    if (!confirm('Mark this quote as accepted? The total will be written to Deal Info.')) return
+                    startTransition(async () => { await acceptQuote(q.id, deal.id); router.refresh() })
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
+                >
+                  Accept Quote
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Site Visit Editor (Sales only) ─────────────────────────────────────────
+function SiteVisitEditor({ dealId, initialDate }: { dealId: string; initialDate: Date | null }) {
+  const [pending, startTransition] = useTransition()
+  const router = useRouter()
+  const toLocal = (d: Date) => {
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16)
+  }
+  const [value, setValue] = useState(initialDate ? toLocal(new Date(initialDate)) : '')
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value
+    setValue(v)
+    startTransition(async () => {
+      await updateDeal(dealId, { siteVisitDate: v ? new Date(v) : null })
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="mt-3 flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
+      <span className="text-base">📅</span>
+      <span className="text-sm font-black text-blue-700 shrink-0">Site Visit:</span>
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={handleChange}
+        disabled={pending}
+        className="text-sm text-blue-700 bg-transparent border-none outline-none cursor-pointer disabled:opacity-50"
+      />
+      {!value && <span className="text-sm text-blue-400 italic">Not scheduled</span>}
     </div>
   )
 }
@@ -582,38 +709,77 @@ const TABS = [
   { key: 'quote', label: 'Submit Quote', icon: Send },
 ]
 
+function maskAddress(address: string): string {
+  const parts = address.split(',').map(s => s.trim())
+  if (parts.length >= 3) return `${parts[1]}, ${parts[2].replace(/\s+\S+$/, '').trim()}`
+  if (parts.length >= 2) return parts[1]
+  return 'Location withheld'
+}
+
 export function EstimationWorkspace({
   deal,
   currentUserId,
   pipelinePath,
+  role = 'sales',
+  readOnly = false,
 }: {
   deal: Deal
   currentUserId: string
   pipelinePath: string
+  role?: 'sales' | 'contractor'
+  readOnly?: boolean
 }) {
   const [activeTab, setActiveTab] = useState('plans')
+  const isContractor = role === 'contractor'
+  const canUpload = !isContractor
+
+  const displayTitle = isContractor
+    ? deal.lead.address
+    : (deal.projectName || deal.lead.address)
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       {/* Header */}
       <div>
-        <Link href={pipelinePath} className="text-sm text-blue-600 hover:underline">← Pipeline</Link>
+        <Link href={pipelinePath} className="text-sm text-blue-600 hover:underline">
+          {isContractor ? '← Jobs' : '← Pipeline'}
+        </Link>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-gray-900">{deal.projectName || deal.lead.address}</h1>
+            <h1 className="text-2xl font-black text-gray-900">{displayTitle}</h1>
             <div className="flex items-center gap-2 mt-1">
-              {deal.clientName && <span className="text-sm text-gray-500">{deal.clientName}</span>}
+              {!isContractor && deal.clientName && <span className="text-sm text-gray-500">{deal.clientName}</span>}
               {deal.projectType && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{deal.projectType}</span>}
               {deal.lead.phase && <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{deal.lead.phase}</span>}
             </div>
           </div>
-          <Link
-            href={`${pipelinePath.replace('/pipeline', '')}/deals/${deal.id}`}
-            className="shrink-0 text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            ← Deal Detail
-          </Link>
+          {!isContractor && (
+            <Link
+              href={`${pipelinePath.replace('/pipeline', '')}/deals/${deal.id}`}
+              className="shrink-0 text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              ← Deal Detail
+            </Link>
+          )}
         </div>
+        {isContractor ? (
+          deal.siteVisitDate && (
+            <div className="mt-3 flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700">
+              <span className="text-base">📅</span>
+              <span>
+                <span className="font-black">Site Visit:</span>{' '}
+                {new Date(deal.siteVisitDate).toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {new Date(deal.siteVisitDate).getHours() + new Date(deal.siteVisitDate).getMinutes() > 0 && (
+                  <span className="ml-1">
+                    @ {new Date(deal.siteVisitDate).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </span>
+            </div>
+          )
+        ) : (
+          <SiteVisitEditor dealId={deal.id} initialDate={deal.siteVisitDate} />
+        )}
       </div>
 
       {/* Tabs */}
@@ -639,10 +805,10 @@ export function EstimationWorkspace({
 
       {/* Tab content */}
       <div>
-        {activeTab === 'plans' && <ViewPlansTab deal={deal} />}
-        {activeTab === 'measurements' && <MeasurementsTab deal={deal} />}
+        {activeTab === 'plans' && <ViewPlansTab deal={deal} canUpload={canUpload} isContractor={isContractor} readOnly={readOnly} />}
+        {activeTab === 'measurements' && <MeasurementsTab deal={deal} readOnly={readOnly} />}
         {activeTab === 'comments' && <CommentsTab deal={deal} currentUserId={currentUserId} />}
-        {activeTab === 'quote' && <QuoteTab deal={deal} />}
+        {activeTab === 'quote' && <QuoteTab deal={deal} isContractor={isContractor} readOnly={readOnly} />}
       </div>
     </div>
   )

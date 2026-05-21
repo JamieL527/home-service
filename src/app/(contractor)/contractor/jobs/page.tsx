@@ -49,7 +49,13 @@ export default async function ContractorJobsPage({
   const tab: Tab = rawTab === 'active' ? 'active' : rawTab === 'completed' ? 'completed' : 'offers'
 
   const [offerCount, activeCount, completedCount] = await Promise.all([
-    prisma.jobOffer.count({ where: { companyId: company.id, status: 'pending' } }),
+    prisma.jobOffer.count({
+      where: {
+        companyId: company.id,
+        status: 'pending',
+        job: { status: { in: ['PENDING', 'READY', 'OFFER_SENT'] as never[] } },
+      },
+    }),
     prisma.job.count({
       where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] } },
     }),
@@ -60,10 +66,14 @@ export default async function ContractorJobsPage({
 
   const pendingOffers = tab === 'offers'
     ? await prisma.jobOffer.findMany({
-        where: { companyId: company.id, status: 'pending' },
+        where: {
+          companyId: company.id,
+          status: 'pending',
+          job: { status: { in: ['PENDING', 'READY', 'OFFER_SENT'] as never[] } },
+        },
         include: {
           job: {
-            include: { lead: { select: { address: true } } },
+            include: { lead: { select: { address: true, source: true } } },
           },
         },
         orderBy: { sentAt: 'desc' },
@@ -146,15 +156,23 @@ export default async function ContractorJobsPage({
               const job = offer.job
               const phase = job.phase
               const price = formatPrice(job)
+              const isReferral = job.lead.source === 'referral'
               return (
-                <div key={offer.id} className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+                <div key={offer.id} className={`rounded-xl border p-5 ${isReferral ? 'border-indigo-200 bg-indigo-50/40' : 'border-blue-200 bg-blue-50/40'}`}>
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <p className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-1">New Offer</p>
-                      <p className="text-sm font-bold text-foreground">{maskAddress(job.lead.address)}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className={`text-xs font-bold uppercase tracking-wide ${isReferral ? 'text-indigo-600' : 'text-blue-600'}`}>
+                          {isReferral ? 'Quote Request' : 'New Offer'}
+                        </p>
+                        {isReferral && (
+                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">Referral</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-foreground">{isReferral ? job.lead.address : maskAddress(job.lead.address)}</p>
                     </div>
                     {phase && (
-                      <span className="shrink-0 text-[10px] font-bold bg-white border border-blue-200 text-blue-600 rounded-full px-2 py-0.5">
+                      <span className={`shrink-0 text-[10px] font-bold bg-white border rounded-full px-2 py-0.5 ${isReferral ? 'border-indigo-200 text-indigo-600' : 'border-blue-200 text-blue-600'}`}>
                         {PHASE_LABELS[phase] ?? phase}
                       </span>
                     )}
@@ -167,7 +185,7 @@ export default async function ContractorJobsPage({
                     {job.scope && (
                       <p className="line-clamp-2"><span className="font-medium text-foreground">Scope:</span> {job.scope}</p>
                     )}
-                    {price && (
+                    {!isReferral && price && (
                       <p><span className="font-medium text-foreground">Price:</span> {price}</p>
                     )}
                     {job.timeline && (
@@ -175,11 +193,26 @@ export default async function ContractorJobsPage({
                     )}
                   </div>
 
+                  {isReferral && (
+                    <p className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 mt-3">
+                      View plans, take measurements, and submit your quote.
+                    </p>
+                  )}
+
                   <p className="text-[11px] text-muted-foreground mt-3">
                     Received {offer.sentAt.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </p>
 
-                  <OfferActions offerId={offer.id} />
+                  {isReferral ? (
+                    <Link
+                      href={`/contractor/jobs/${job.id}/quote`}
+                      className="mt-3 flex items-center justify-center gap-2 w-full py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      View Plans & Submit Quote
+                    </Link>
+                  ) : (
+                    <OfferActions offerId={offer.id} />
+                  )}
                 </div>
               )
             })}

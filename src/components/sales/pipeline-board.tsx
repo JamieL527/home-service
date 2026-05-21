@@ -24,7 +24,7 @@ type Deal = {
   currentStage: string
   status: string
   ownerId: string | null
-  lead: { address: string; phase: string | null }
+  lead: { address: string; phase: string | null; source: string | null }
   quotes: { total: number | null; status: string }[]
 }
 
@@ -54,7 +54,12 @@ function DealCard({ deal, basePath }: { deal: Deal; basePath: string }) {
             <p className="text-xs text-gray-500 truncate">{deal.clientName}</p>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {deal.lead.source === 'referral' && (
+            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+              Referral
+            </span>
+          )}
           {deal.lead.phase && (
             <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
               {deal.lead.phase}
@@ -238,7 +243,12 @@ export function PipelineBoard({ deals, currentUserId, basePath = '/sales' }: { d
                   <p className="text-sm font-semibold text-gray-900 truncate">
                     {deal.projectName || deal.lead.address}
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {deal.lead.source === 'referral' && (
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                        Referral
+                      </span>
+                    )}
                     {deal.lead.phase && (
                       <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
                         {deal.lead.phase}

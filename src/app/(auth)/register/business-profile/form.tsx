@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useRef, useState } from 'react'
 import { saveBusinessProfile } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 
 const inputClass =
   'flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50'
@@ -65,6 +66,7 @@ export type BusinessProfileValues = {
   contactPhone: string
   wsibNumber: string
   insuranceNumber: string
+  logoUrl?: string
 }
 
 export function BusinessProfileForm({
@@ -75,6 +77,28 @@ export function BusinessProfileForm({
   verified?: boolean
 }) {
   const [state, action, isPending] = useActionState(saveBusinessProfile, null)
+  const [logoUrl, setLogoUrl] = useState(initialValues?.logoUrl ?? '')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoRef = useRef<HTMLInputElement>(null)
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop() ?? 'png'
+      const path = `logos/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('contractor-logos').upload(path, file, { upsert: false })
+      if (error) throw error
+      const { data } = supabase.storage.from('contractor-logos').getPublicUrl(path)
+      setLogoUrl(data.publicUrl)
+    } catch {
+      alert('Logo upload failed. Please try again.')
+    } finally {
+      setLogoUploading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background py-10 px-4">
@@ -94,6 +118,8 @@ export function BusinessProfileForm({
         </div>
 
         <form action={action} className="space-y-6">
+          <input type="hidden" name="logoUrl" value={logoUrl} />
+
           <div>
             <SectionTitle>Business Information</SectionTitle>
             <div className="space-y-4">
@@ -128,6 +154,29 @@ export function BusinessProfileForm({
                 placeholder="e.g. example.com or https://example.com"
                 defaultValue={initialValues?.website}
               />
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  Company Logo
+                  <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  {logoUrl && (
+                    <img src={logoUrl} alt="Logo preview" className="h-12 w-12 rounded-lg object-contain border border-border bg-muted" />
+                  )}
+                  <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoFile} />
+                  <button
+                    type="button"
+                    onClick={() => logoRef.current?.click()}
+                    disabled={logoUploading}
+                    className="text-sm font-medium text-primary border border-border rounded-lg px-3 py-1.5 hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {logoUploading ? 'Uploading…' : logoUrl ? 'Change Logo' : 'Upload Logo'}
+                  </button>
+                  {logoUrl && (
+                    <button type="button" onClick={() => setLogoUrl('')} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+                  )}
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <label htmlFor="tradeType" className={labelClass}>
                   Trade / Service Type

@@ -54,7 +54,14 @@ export default async function ContractorJobDetailPage({
 
   const job = await prisma.job.findFirst({
     where: { id, companyId: company.id },
-    include: { lead: { select: { address: true } } },
+    include: {
+      lead: {
+        select: {
+          address: true,
+          deals: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true } },
+        },
+      },
+    },
   })
 
   if (!job) notFound()
@@ -65,6 +72,7 @@ export default async function ContractorJobDetailPage({
   const price = formatPrice(job)
   const isActive = status === 'ASSIGNED' || status === 'IN_PROGRESS'
   const isDone = status === 'COMPLETED' || status === 'VERIFIED'
+  const hasDeal = !!job.lead.deals[0]?.id
 
   return (
     <div className="max-w-2xl animate-fadeIn">
@@ -102,6 +110,20 @@ export default async function ContractorJobDetailPage({
             <Row label="Timeline" value={job.timeline} />
           </div>
         </section>
+
+        {/* Plans & Documents */}
+        {(isActive || isDone) && hasDeal && (
+          <Link
+            href={`/contractor/jobs/${id}/estimation`}
+            className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 p-5 hover:bg-indigo-100 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-bold text-indigo-800">Plans & Documents</p>
+              <p className="text-xs text-indigo-500 mt-0.5">View plans, measurements, and quote details</p>
+            </div>
+            <span className="text-indigo-400 font-bold text-lg">→</span>
+          </Link>
+        )}
 
         {/* Scope of Work */}
         {job.scope && (

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { updateJobDetails } from '@/app/actions/jobs-admin'
+import { updateJobDetails, updateReferralJobDetails } from '@/app/actions/jobs-admin'
 import { VerifyButton } from './verify-button'
 import { PhotoGrid } from '@/components/ui/photo-grid'
 
@@ -46,9 +46,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     include: {
       lead: {
         select: {
-          id: true, address: true, phase: true,
+          id: true, address: true, phase: true, source: true, businessName: true,
+          contacts: { take: 1 },
           deals: {
-            where: { status: 'won' },
             orderBy: { createdAt: 'desc' },
             take: 1,
             include: {
@@ -67,13 +67,38 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   if (!job) notFound()
 
-  const isEditable = (job.status as string) === 'PENDING'
+  const isReferral = job.lead.source === 'referral'
+  const isEditable = (job.status as string) === 'PENDING' || (isReferral && (job.status as string) === 'READY')
+
+  const timelineStart = job.timeline?.match(/Start: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
+  const timelineEnd = job.timeline?.match(/End: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
+  const leadContact = job.lead.contacts[0] ?? null
+
+  async function handleReferralSave(formData: FormData) {
+    'use server'
+    await updateReferralJobDetails(id, {
+      businessName: formData.get('businessName') as string || undefined,
+      phase: formData.get('phase') as string || undefined,
+      contactId: leadContact?.id,
+      contactName: formData.get('contactName') as string || undefined,
+      contactPhone: formData.get('contactPhone') as string || undefined,
+      contactEmail: formData.get('contactEmail') as string || undefined,
+      serviceType: formData.get('serviceType') as string,
+      contractorType: formData.get('contractorType') as string,
+      scope: formData.get('scope') as string,
+      timelineStart: formData.get('timelineStart') as string || undefined,
+      timelineEnd: formData.get('timelineEnd') as string || undefined,
+    })
+    redirect('/admin/jobs')
+  }
   const phase = job.phase ?? job.lead.phase
   const meta = STATUS_META[job.status as string] ?? STATUS_META.PENDING
 
-  // Detect if this job was created from a Sales Deal Won
-  const wonDeal = job.lead.deals[0] ?? null
-  const acceptedQuote = wonDeal?.quotes[0] ?? null
+  const anyDeal = job.lead.deals[0] ?? null
+  // For non-referral jobs, only use deal if it was 'won' (created by Sales Deal Won flow)
+  const wonDeal = isReferral ? null : (anyDeal?.status === 'won' ? anyDeal : null)
+  const referralDeal = isReferral ? anyDeal : null
+  const acceptedQuote = (wonDeal ?? referralDeal)?.quotes[0] ?? null
   const fromDeal = !!wonDeal
 
   // Derive scope text from deal.notes or accepted quote line items
@@ -147,12 +172,22 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <Link href="/admin/jobs" className="inline-flex items-center text-sm text-gray-400 hover:text-gray-700 font-semibold transition-colors">
           ← Jobs
         </Link>
-        <Link
-          href={`/admin/leads/${job.lead.id}?from=jobs`}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          View Lead Detail →
-        </Link>
+        <div className="flex items-center gap-3">
+          {isReferral && referralDeal && (
+            <Link
+              href={`/admin/sales/deals/${referralDeal.id}/estimation`}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors"
+            >
+              Plans & Quote →
+            </Link>
+          )}
+          <Link
+            href={`/admin/leads/${job.lead.id}?from=jobs`}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            View Lead Detail →
+          </Link>
+        </div>
       </div>
 
       {/* Header */}
@@ -170,11 +205,83 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         {phase && <p className="text-xs text-gray-400 mt-0.5">{PHASE_LABELS[phase] ?? phase}</p>}
       </div>
 
-      <form action={handleSave} className="space-y-6">
+      <form action={isReferral && isEditable ? handleReferralSave : handleSave} className="space-y-6">
         {/* Hidden dealId for server action to detect source */}
         {fromDeal && <input type="hidden" name="dealId" value={wonDeal!.id} />}
 
-        {fromDeal ? (
+        {isReferral && isEditable ? (
+          /* ── Referral layout: mirrors creation form ── */
+          <>
+            <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Project Info</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <ReadField label="Address" value={job.lead.address} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Client Name</label>
+                  <input name="businessName" defaultValue={job.lead.businessName ?? ''} placeholder="e.g. John Smith" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Phase</label>
+                  <select name="phase" defaultValue={phase ?? ''} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200">
+                    <option value="">— Select Phase —</option>
+                    {['P0','P1','P2','P3','P4','P5','MLS'].map(p => (
+                      <option key={p} value={p}>{PHASE_LABELS[p]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Contact Info</h2>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Contact Name</label>
+                  <input name="contactName" defaultValue={leadContact?.name ?? ''} placeholder="Name" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Phone</label>
+                  <input name="contactPhone" defaultValue={leadContact?.phone ?? ''} placeholder="416-xxx-xxxx" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Email</label>
+                  <input name="contactEmail" type="email" defaultValue={leadContact?.email ?? ''} placeholder="email@example.com" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Job Details</h2>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Project Type <span className="text-red-500">*</span></label>
+                  <input name="serviceType" required defaultValue={job.serviceType ?? ''} placeholder="e.g. Basement Waterproofing" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Contractor Type <span className="text-red-500">*</span></label>
+                  <input name="contractorType" required defaultValue={job.contractorType ?? ''} placeholder="e.g. Plumber / Electrician" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-gray-500 mb-1.5">Scope of Work <span className="text-red-500">*</span></label>
+                <textarea name="scope" required rows={3} defaultValue={job.scope ?? ''} placeholder="Describe the scope of work..." className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Timeline Start</label>
+                  <input name="timelineStart" type="date" defaultValue={timelineStart} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Timeline End</label>
+                  <input name="timelineEnd" type="date" defaultValue={timelineEnd} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200" />
+                </div>
+              </div>
+            </section>
+
+          </>
+        ) : fromDeal ? (
           /* ── Deal-Won layout: read-only info + only contractorType editable ── */
           <>
             <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
@@ -277,57 +384,70 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
             <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
               <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Pricing</h2>
-              <div className="flex gap-3 mb-4">
-                {(['fixed', 'range'] as const).map((t) => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="priceType"
-                      value={t}
-                      defaultChecked={(job.priceType ?? 'fixed') === t}
-                      disabled={!isEditable}
-                      className="accent-blue-600"
-                    />
-                    <span className="text-sm font-medium text-gray-700 capitalize">{t}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Fixed Price ($)</label>
-                  <input
-                    name="priceFixed"
-                    type="number" min="0" step="0.01"
-                    defaultValue={job.priceFixed ?? ''}
-                    placeholder="0.00"
-                    disabled={!isEditable}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
-                  />
-                </div>
-                <div />
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Min Price ($)</label>
-                  <input
-                    name="priceMin"
-                    type="number" min="0" step="0.01"
-                    defaultValue={job.priceMin ?? ''}
-                    placeholder="0.00"
-                    disabled={!isEditable}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Max Price ($)</label>
-                  <input
-                    name="priceMax"
-                    type="number" min="0" step="0.01"
-                    defaultValue={job.priceMax ?? ''}
-                    placeholder="0.00"
-                    disabled={!isEditable}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
-                  />
-                </div>
-              </div>
+              {isReferral ? (
+                acceptedQuote?.total != null ? (
+                  <p className="text-sm font-bold text-green-700">
+                    ${acceptedQuote.total.toLocaleString('en-CA', { minimumFractionDigits: 2 })}
+                    <span className="ml-2 text-xs font-normal text-green-600">from accepted quote</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">Pricing is determined by the contractor&apos;s submitted quote via the Estimation Workspace.</p>
+                )
+              ) : (
+                <>
+                  <div className="flex gap-3 mb-4">
+                    {(['fixed', 'range'] as const).map((t) => (
+                      <label key={t} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="priceType"
+                          value={t}
+                          defaultChecked={(job.priceType ?? 'fixed') === t}
+                          disabled={!isEditable}
+                          className="accent-blue-600"
+                        />
+                        <span className="text-sm font-medium text-gray-700 capitalize">{t}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5">Fixed Price ($)</label>
+                      <input
+                        name="priceFixed"
+                        type="number" min="0" step="0.01"
+                        defaultValue={job.priceFixed ?? ''}
+                        placeholder="0.00"
+                        disabled={!isEditable}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
+                      />
+                    </div>
+                    <div />
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5">Min Price ($)</label>
+                      <input
+                        name="priceMin"
+                        type="number" min="0" step="0.01"
+                        defaultValue={job.priceMin ?? ''}
+                        placeholder="0.00"
+                        disabled={!isEditable}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5">Max Price ($)</label>
+                      <input
+                        name="priceMax"
+                        type="number" min="0" step="0.01"
+                        defaultValue={job.priceMax ?? ''}
+                        placeholder="0.00"
+                        disabled={!isEditable}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50 disabled:text-gray-500"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </section>
 
             <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
@@ -380,7 +500,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               type="submit"
               className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors"
             >
-              Save & Mark Ready
+              {isReferral ? 'Save Changes' : 'Save & Mark Ready'}
             </button>
             <Link
               href="/admin/jobs"

@@ -13,7 +13,7 @@ export default async function PipelinePage() {
 
   const deals = await prisma.deal.findMany({
     include: {
-      lead: { select: { address: true, phase: true } },
+      lead: { select: { address: true, phase: true, source: true } },
       quotes: { orderBy: { version: 'desc' }, take: 1 },
     },
     orderBy: { createdAt: 'desc' },

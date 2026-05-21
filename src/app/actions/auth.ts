@@ -177,6 +177,7 @@ export async function saveBusinessProfile(
   const wsibNumber = (formData.get('wsibNumber') as string)?.trim()
   const insuranceNumber = (formData.get('insuranceNumber') as string)?.trim()
   const termsAccepted = formData.get('termsAccepted') === 'on'
+  const logoUrl = (formData.get('logoUrl') as string)?.trim() || null
 
   if (!name || !businessNumber || !address || !tradeType || !contactName || !contactTitle || !contactEmail || !contactPhone || !wsibNumber || !insuranceNumber) {
     return { error: 'Please fill in all required fields.' }
@@ -199,6 +200,7 @@ export async function saveBusinessProfile(
       contactPhone,
       wsibNumber,
       insuranceNumber,
+      logoUrl,
       termsAccepted: true,
       termsAcceptedAt: new Date(),
       status: 'PENDING_APPROVAL',
@@ -233,6 +235,7 @@ export async function getBusinessProfile() {
     contactPhone: c.contactPhone ?? '',
     wsibNumber: c.wsibNumber ?? '',
     insuranceNumber: c.insuranceNumber ?? '',
+    logoUrl: c.logoUrl ?? '',
   }
 }
 

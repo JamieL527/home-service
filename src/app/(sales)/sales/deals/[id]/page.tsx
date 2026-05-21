@@ -13,10 +13,16 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
         select: {
           address: true,
           phase: true,
+          source: true,
           contacts: true,
           businessName: true,
           initialComment: true,
           marketingNote: true,
+          jobs: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { serviceType: true, scope: true, contractorType: true, timeline: true },
+          },
         },
       },
       quotes: { orderBy: { version: 'desc' } },

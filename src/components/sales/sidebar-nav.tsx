@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Briefcase } from 'lucide-react'
 
 const navItems = [
   { href: '/sales/pipeline', label: 'Pipeline', icon: TrendingUp },
+  { href: '/sales/jobs', label: 'Jobs', icon: Briefcase },
 ]
 
 export function SalesSidebarNav() {

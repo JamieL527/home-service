@@ -6,10 +6,13 @@ import { LeadDetailView } from '@/components/shared/lead-detail-view'
 
 export default async function SalesLeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string }>
 }) {
   const { id } = await params
+  const { from } = await searchParams
 
   const lead = await prisma.lead.findUnique({
     where: { id },
@@ -18,11 +21,13 @@ export default async function SalesLeadDetailPage({
 
   if (!lead) notFound()
 
+  const fromJobs = from === 'jobs'
+
   return (
     <LeadDetailView
       lead={lead}
-      backHref="/sales/pipeline"
-      backLabel="← Pipeline"
+      backHref={fromJobs ? '/sales/jobs' : '/sales/pipeline'}
+      backLabel={fromJobs ? '← Jobs' : '← Pipeline'}
       showMarketingNotes={true}
     />
   )

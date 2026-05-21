@@ -45,6 +45,7 @@ model ContractorCompany {
   website         String?
   wsibNumber      String?
   tradeType       String?
+  logoUrl         String?
   jobs            Job[]
   offers          JobOffer[]
   users           User[]
@@ -173,14 +174,15 @@ model Deal {
 }
 
 model DealPlan {
-  id        String   @id @default(uuid())
-  dealId    String
-  name      String
-  planType  String
-  fileUrl   String
-  fileType  String
-  createdAt DateTime @default(now())
-  deal      Deal     @relation(fields: [dealId], references: [id])
+  id               String   @id @default(uuid())
+  dealId           String
+  name             String
+  planType         String
+  fileUrl          String
+  fileType         String
+  uploadedByRole   String?
+  createdAt        DateTime @default(now())
+  deal             Deal     @relation(fields: [dealId], references: [id])
 }
 
 model DealMeasurement {
@@ -340,4 +342,15 @@ enum ContractorCompanyStatus {
   REJECTED
   ACTION_REQUIRED
   SUSPENDED
+}
+
+model Builder {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  website     String?
+  email       String?
+  phone       String?
+  status      String   @default("pending") // pending | found | not_found | error
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

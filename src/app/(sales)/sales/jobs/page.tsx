@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { Briefcase } from 'lucide-react'
-import { NewReferralLeadButton } from './new-referral-lead-button'
-import { DeleteReferralJobButton } from './delete-referral-job-button'
+import { NewReferralLeadButton } from '@/app/(admin)/admin/jobs/new-referral-lead-button'
+import { DeleteReferralJobButton } from '@/app/(admin)/admin/jobs/delete-referral-job-button'
 
 const PHASES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'MLS']
 
@@ -47,7 +47,7 @@ function formatPrice(job: {
   return null
 }
 
-export default async function JobBoardPage({
+export default async function SalesJobsPage({
   searchParams,
 }: {
   searchParams: Promise<{ phase?: string; status?: string }>
@@ -62,7 +62,7 @@ export default async function JobBoardPage({
     where,
     orderBy: { createdAt: 'desc' },
     include: {
-      lead: { select: { id: true, address: true, phase: true, source: true, deals: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true } } } },
+      lead: { select: { id: true, address: true, phase: true, source: true, deals: { take: 1, select: { id: true } } } },
       company: { select: { name: true } },
     },
   })
@@ -114,7 +114,7 @@ export default async function JobBoardPage({
           return (
             <Link
               key={key}
-              href={isActive ? '/admin/jobs' : `/admin/jobs?status=${key}`}
+              href={isActive ? '/sales/jobs' : `/sales/jobs?status=${key}`}
               className={`flex items-center gap-2 border rounded-xl px-4 py-3 shadow-sm transition-colors ${cls} ${isActive ? 'ring-2 ring-offset-1 ring-current' : hover}`}
             >
               <span className="text-xs font-bold uppercase tracking-wider opacity-70">{label}:</span>
@@ -123,7 +123,7 @@ export default async function JobBoardPage({
           )
         })}
         <Link
-          href="/admin/jobs"
+          href="/sales/jobs"
           className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:bg-slate-100 transition-colors"
         >
           <Briefcase size={14} className="text-slate-500" />
@@ -135,7 +135,7 @@ export default async function JobBoardPage({
       {/* Phase Filter */}
       <div className="flex gap-2 mb-5 flex-wrap">
         <Link
-          href="/admin/jobs"
+          href="/sales/jobs"
           className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
             !phaseFilter
               ? 'bg-gray-900 text-white border-gray-900'
@@ -151,7 +151,7 @@ export default async function JobBoardPage({
           return (
             <Link
               key={p}
-              href={`/admin/jobs?phase=${encodeURIComponent(p)}`}
+              href={`/sales/jobs?phase=${encodeURIComponent(p)}`}
               className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
                 isActive ? colors.active : colors.inactive
               }`}
@@ -174,10 +174,11 @@ export default async function JobBoardPage({
             const meta = STATUS_META[job.status as string] ?? STATUS_META.PENDING
             const price = formatPrice(job)
 
+            const isReferral = job.lead.source === 'referral'
+            const dealId = job.lead.deals[0]?.id
+
             return (
               <div key={job.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:gap-4">
-
-                {/* Top row on mobile: dot + address + badges */}
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="mt-1.5 shrink-0">
                     <div className={`w-2.5 h-2.5 rounded-full ${meta.dot}`} />
@@ -193,7 +194,7 @@ export default async function JobBoardPage({
                       <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 whitespace-nowrap ${meta.color}`}>
                         {meta.label}
                       </span>
-                      {job.lead.source === 'referral' && (
+                      {isReferral && (
                         <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 whitespace-nowrap">
                           Referral
                         </span>
@@ -213,11 +214,10 @@ export default async function JobBoardPage({
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-2 flex-wrap mt-3 sm:mt-0 sm:shrink-0 sm:flex-nowrap">
                   {(job.status as string) === 'PENDING' && (
                     <Link
-                      href={`/admin/jobs/${job.id}`}
+                      href={`/sales/jobs/${job.id}`}
                       className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
                       Fill Details
@@ -225,24 +225,24 @@ export default async function JobBoardPage({
                   )}
                   {(job.status as string) === 'READY' && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {isReferral && dealId && (
                         <Link
-                          href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
+                          href={`/sales/deals/${dealId}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
                         >
                           Plans & Quote
                         </Link>
                       )}
                       <Link
-                        href={`/admin/jobs/${job.id}/match`}
+                        href={`/sales/jobs/${job.id}/match`}
                         className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
                       >
-                        Find Contractor
+                        {isReferral ? 'Invite Contractor' : 'Find Contractor'}
                       </Link>
-                      {job.lead.source === 'referral' && (
+                      {isReferral && (
                         <>
                           <Link
-                            href={`/admin/jobs/${job.id}`}
+                            href={`/sales/jobs/${job.id}`}
                             className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-white border border-gray-200 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                           >
                             Edit
@@ -254,34 +254,36 @@ export default async function JobBoardPage({
                   )}
                   {(job.status as string) === 'OFFER_SENT' && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {isReferral && dealId && (
                         <Link
-                          href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
+                          href={`/sales/deals/${dealId}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
                         >
                           Plans & Quote
                         </Link>
                       )}
-                      <Link
-                        href={`/admin/jobs/${job.id}`}
-                        className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
-                      >
-                        View Offer
-                      </Link>
+                      {!isReferral && (
+                        <Link
+                          href={`/sales/jobs/${job.id}`}
+                          className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                        >
+                          View Offer
+                        </Link>
+                      )}
                     </>
                   )}
                   {(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED'] as const).includes(job.status as never) && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {isReferral && dealId && (
                         <Link
-                          href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
+                          href={`/sales/deals/${dealId}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
                         >
                           Plans & Quote
                         </Link>
                       )}
                       <Link
-                        href={`/admin/jobs/${job.id}`}
+                        href={`/sales/jobs/${job.id}`}
                         className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap"
                       >
                         View Details
@@ -289,7 +291,7 @@ export default async function JobBoardPage({
                     </>
                   )}
                   <Link
-                    href={`/admin/leads/${job.lead.id}?from=jobs`}
+                    href={`/sales/leads/${job.lead.id}?from=jobs`}
                     className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     Lead Detail

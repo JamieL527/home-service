@@ -14,6 +14,7 @@ export async function sendQuoteEmail({
   tax,
   total,
   notes,
+  logoUrl,
 }: {
   to: string
   projectName: string
@@ -24,6 +25,7 @@ export async function sendQuoteEmail({
   tax: number
   total: number
   notes?: string | null
+  logoUrl?: string | null
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE || to
   const from = process.env.RESEND_FROM || 'onboarding@resend.dev'
@@ -49,7 +51,7 @@ export async function sendQuoteEmail({
 <head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:32px 16px;">
 
-  <p style="font-size:14px;color:#666;margin-bottom:24px;">Blue Jays On Air</p>
+  ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="height:48px;max-width:180px;object-fit:contain;margin-bottom:20px;display:block;">` : `<p style="font-size:14px;color:#666;margin-bottom:24px;">Blue Jays On Air</p>`}
 
   <h1 style="font-size:22px;font-weight:700;margin-bottom:4px;">Quote #${quoteVersion}</h1>
   <p style="font-size:14px;color:#555;margin-bottom:24px;">${projectName}</p>
@@ -98,5 +100,44 @@ export async function sendQuoteEmail({
     to: recipient,
     subject: `Quote #${quoteVersion} — ${projectName}`,
     html,
+  })
+}
+
+export async function sendCommentNotificationEmail({
+  to,
+  authorName,
+  content,
+  projectName,
+  dealUrl,
+}: {
+  to: string
+  authorName: string
+  content: string
+  projectName: string
+  dealUrl: string
+}) {
+  const recipient = process.env.RESEND_TO_OVERRIDE || to
+  const from = process.env.RESEND_FROM || 'onboarding@resend.dev'
+
+  await resend.emails.send({
+    from,
+    to: recipient,
+    subject: `New comment on ${projectName}`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:32px 16px;">
+  <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">New comment from ${authorName}</h2>
+  <p style="font-size:13px;color:#888;margin-bottom:20px;">${projectName}</p>
+  <div style="background:#f8f8f8;border-left:3px solid #6366f1;padding:12px 16px;border-radius:4px;font-size:14px;color:#333;margin-bottom:24px;">
+    ${content}
+  </div>
+  <a href="${dealUrl}" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;">View Conversation →</a>
+  <p style="font-size:12px;color:#aaa;margin-top:32px;border-top:1px solid #eee;padding-top:16px;">
+    You received this because you are involved in this project.
+  </p>
+</body>
+</html>`,
   })
 }

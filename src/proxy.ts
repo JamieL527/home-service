@@ -89,11 +89,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith('/admin')) {
     const role = request.cookies.get('user-role')?.value
-    const salesAllowed =
-      pathname.startsWith('/admin/evaluation') ||
-      pathname.startsWith('/admin/parking') ||
-      pathname.startsWith('/admin/leads')
-    if (role !== 'ADMIN' && !(role === 'SALES' && salesAllowed)) {
+    if (role !== 'ADMIN') {
       const url = request.nextUrl.clone()
       url.pathname = role && ROLE_ROUTES[role] ? ROLE_ROUTES[role] : '/login'
       return NextResponse.redirect(url)

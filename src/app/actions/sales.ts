@@ -172,9 +172,16 @@ export async function createQuote(
   })
   if (data.submit && !isContractorRole) {
     await maybeSendQuoteEmail(dealId, data.lineItems, data.subtotal, data.tax, data.total, data.notes, version)
+    const QUOTE_SENT_IDX = STAGE_ORDER.indexOf('QUOTE_SENT')
+    const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { currentStage: true } })
+    if (deal && STAGE_ORDER.indexOf(deal.currentStage) < QUOTE_SENT_IDX) {
+      await prisma.deal.update({ where: { id: dealId }, data: { currentStage: 'QUOTE_SENT' } })
+    }
   }
   revalidatePath(`/sales/deals/${dealId}`)
   revalidatePath(`/contractor/jobs`)
+  revalidatePath('/sales/pipeline')
+  revalidatePath('/admin/sales')
 }
 
 export async function updateQuote(
@@ -206,8 +213,15 @@ export async function updateQuote(
   const role2 = jar2.get('user-role')?.value
   if (data.submit && (role2 === 'SALES' || role2 === 'ADMIN')) {
     await maybeSendQuoteEmail(dealId, data.lineItems, data.subtotal, data.tax, data.total, data.notes, quote.version)
+    const QUOTE_SENT_IDX = STAGE_ORDER.indexOf('QUOTE_SENT')
+    const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { currentStage: true } })
+    if (deal && STAGE_ORDER.indexOf(deal.currentStage) < QUOTE_SENT_IDX) {
+      await prisma.deal.update({ where: { id: dealId }, data: { currentStage: 'QUOTE_SENT' } })
+    }
   }
   revalidatePath(`/sales/deals/${dealId}`)
+  revalidatePath('/sales/pipeline')
+  revalidatePath('/admin/sales')
 }
 
 export async function submitDraftQuote(quoteId: string, dealId: string) {
@@ -219,10 +233,22 @@ export async function submitDraftQuote(quoteId: string, dealId: string) {
     data: { status: 'submitted', submittedAt: new Date() },
   })
 
+  // Auto-advance deal stage to QUOTE_SENT if not already past it
+  const QUOTE_SENT_IDX = STAGE_ORDER.indexOf('QUOTE_SENT')
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { currentStage: true } })
+  if (deal && STAGE_ORDER.indexOf(deal.currentStage) < QUOTE_SENT_IDX) {
+    await prisma.deal.update({
+      where: { id: dealId },
+      data: { currentStage: 'QUOTE_SENT' },
+    })
+  }
+
   const lineItems = (quote.lineItems as Array<{ description: string; quantity: number; unitPrice: number }>) ?? []
   await maybeSendQuoteEmail(dealId, lineItems, quote.subtotal ?? 0, quote.tax ?? 0, quote.total ?? 0, quote.notes, quote.version)
 
   revalidatePath(`/sales/deals/${dealId}`)
+  revalidatePath('/sales/pipeline')
+  revalidatePath('/admin/sales')
 }
 
 export async function acceptQuote(quoteId: string, dealId: string) {

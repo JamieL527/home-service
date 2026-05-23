@@ -15,6 +15,7 @@ export async function sendQuoteEmail({
   total,
   notes,
   logoUrl,
+  pdfBuffer,
 }: {
   to: string
   projectName: string
@@ -26,6 +27,7 @@ export async function sendQuoteEmail({
   total: number
   notes?: string | null
   logoUrl?: string | null
+  pdfBuffer?: Buffer | null
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE || to
   const from = process.env.RESEND_FROM || 'onboarding@resend.dev'
@@ -100,6 +102,12 @@ export async function sendQuoteEmail({
     to: recipient,
     subject: `Quote #${quoteVersion} — ${projectName}`,
     html,
+    ...(pdfBuffer ? {
+      attachments: [{
+        filename: `Invoice-${projectName.replace(/[^a-zA-Z0-9]/g, '-')}-v${quoteVersion}.pdf`,
+        content: pdfBuffer,
+      }],
+    } : {}),
   })
 }
 

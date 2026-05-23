@@ -262,14 +262,12 @@ export default async function SalesJobsPage({
                           Plans & Quote
                         </Link>
                       )}
-                      {!isReferral && (
-                        <Link
-                          href={`/sales/jobs/${job.id}`}
-                          className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
-                        >
-                          View Offer
-                        </Link>
-                      )}
+                      <Link
+                        href={`/sales/jobs/${job.id}`}
+                        className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                      >
+                        View Offer
+                      </Link>
                     </>
                   )}
                   {(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED'] as const).includes(job.status as never) && (

@@ -68,7 +68,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   if (!job) notFound()
 
   const isReferral = job.lead.source === 'referral'
-  const isEditable = (job.status as string) === 'PENDING' || (isReferral && (job.status as string) === 'READY')
+  const isEditable = isReferral
+    ? ['PENDING', 'READY', 'OFFER_SENT'].includes(job.status as string)
+    : (job.status as string) === 'PENDING'
 
   const timelineStart = job.timeline?.match(/Start: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
   const timelineEnd = job.timeline?.match(/End: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''

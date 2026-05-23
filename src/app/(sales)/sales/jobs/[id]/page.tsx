@@ -68,7 +68,7 @@ export default async function SalesJobDetailPage({ params }: { params: Promise<{
   }
 
   const isReferral = job.lead.source === 'referral'
-  const isEditable = isReferral && (job.status as string) === 'READY'
+  const isEditable = isReferral && ['PENDING', 'READY', 'OFFER_SENT'].includes(job.status as string)
   const phase = job.phase ?? job.lead.phase
   const meta = STATUS_META[job.status as string] ?? STATUS_META.PENDING
   const timelineStart = job.timeline?.match(/Start: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''

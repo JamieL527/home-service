@@ -217,6 +217,7 @@ model Quote {
   total       Float?
   status      String    @default("draft")
   notes       String?
+  pdfUrl      String?
   createdAt   DateTime  @default(now())
   submittedAt DateTime?
   deal        Deal      @relation(fields: [dealId], references: [id])

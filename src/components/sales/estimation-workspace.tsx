@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { X, Plus, Trash2, Upload, FileText, MessageSquare, Ruler, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { addDealPlan, deleteDealPlan, addMeasurement, deleteMeasurement, addComment } from '@/app/actions/estimation'
-import { createQuote, updateQuote, acceptQuote, updateDeal } from '@/app/actions/sales'
+import { createQuote, updateQuote, acceptQuote, deleteQuote, updateDeal } from '@/app/actions/sales'
 
 const PLAN_TYPES = ['Floor Plan', 'Elevation', 'Electrical', 'Plumbing', 'HVAC', 'Other']
 const CONTRACTOR_UPLOAD_TYPES = ['Site Photo', 'Field Measurement', 'Reference Image', 'Other']
@@ -21,7 +21,7 @@ type Plan = { id: string; name: string; planType: string; fileUrl: string; fileT
 type Measurement = { id: string; label: string; type: string; value: number; unit: string; notes: string | null }
 type Comment = { id: string; content: string; createdAt: Date; author: { id: string; firstName: string | null; lastName: string | null; email: string } }
 type LineItem = { description: string; quantity: number; unitPrice: number }
-type Quote = { id: string; version: number; lineItems: unknown; subtotal: number | null; tax: number | null; total: number | null; status: string; notes: string | null; createdAt: Date }
+type Quote = { id: string; version: number; lineItems: unknown; subtotal: number | null; tax: number | null; total: number | null; status: string; notes: string | null; pdfUrl: string | null; createdAt: Date }
 type Deal = {
   id: string
   projectName: string | null
@@ -546,11 +546,11 @@ function QuoteTab({ deal, isContractor, readOnly }: { deal: Deal; isContractor: 
     setShowForm(true)
   }
 
-  function save(doSubmit: boolean) {
+  function save(doSubmit: boolean, generatePdf = false) {
     const valid = items.filter(i => i.description.trim())
     if (valid.length === 0) { alert('Add at least one line item.'); return }
     startTransition(async () => {
-      const payload = { lineItems: valid, subtotal, tax, total, notes: notes || undefined, submit: doSubmit }
+      const payload = { lineItems: valid, subtotal, tax, total, notes: notes || undefined, submit: doSubmit, generatePdf }
       if (editingId) { await updateQuote(editingId, deal.id, payload) } else { await createQuote(deal.id, payload) }
       router.refresh(); setShowForm(false)
     })
@@ -594,10 +594,10 @@ function QuoteTab({ deal, isContractor, readOnly }: { deal: Deal; isContractor: 
             </div>
           </div>
           <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" rows={2} placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button disabled={pending} onClick={() => save(false)} className="px-4 py-2 text-sm font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-40 transition-colors">Save Draft</button>
-            <button disabled={pending} onClick={() => save(true)} className="px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
-              {isContractor ? 'Submit Quote to Sales' : 'Submit to Client'}
+            <button disabled={pending} onClick={() => save(false, true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+              <FileText size={13} /> Generate Invoice
             </button>
             <button onClick={() => setShowForm(false)} className="ml-auto text-sm text-gray-400 hover:text-gray-600">Cancel</button>
           </div>
@@ -641,10 +641,41 @@ function QuoteTab({ deal, isContractor, readOnly }: { deal: Deal; isContractor: 
             <div className="flex justify-between font-black text-gray-800"><span>Total</span><span>{fmtMoney(q.total)}</span></div>
           </div>
           {q.notes && <p className="text-xs text-gray-400 italic">{q.notes}</p>}
+          {q.pdfUrl && (
+            <a
+              href={q.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700"
+            >
+              <FileText size={12} /> View PDF Invoice
+            </a>
+          )}
           {!readOnly && (
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center flex-wrap">
               {(q.status === 'draft' || (!isContractor && (q.status === 'submitted' || q.status === 'pending_review'))) && (
                 <button disabled={pending} onClick={() => openEdit(q)} className="text-xs font-bold text-blue-600 hover:underline">Edit</button>
+              )}
+              {(q.status === 'draft' || (!isContractor && (q.status === 'pending_review' || q.status === 'submitted'))) && (
+                <button
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await updateQuote(q.id, deal.id, {
+                        lineItems: lineItems(q),
+                        subtotal: q.subtotal ?? 0,
+                        tax: q.tax ?? 0,
+                        total: q.total ?? 0,
+                        notes: q.notes ?? undefined,
+                        submit: true,
+                      })
+                      router.refresh()
+                    })
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                >
+                  {isContractor ? 'Submit to Sales' : 'Submit to Client'}
+                </button>
               )}
               {(q.status === 'submitted' || q.status === 'pending_review') && !isContractor && (
                 <button
@@ -656,6 +687,18 @@ function QuoteTab({ deal, isContractor, readOnly }: { deal: Deal; isContractor: 
                   className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
                 >
                   Accept Quote
+                </button>
+              )}
+              {q.status !== 'accepted' && (
+                <button
+                  disabled={pending}
+                  onClick={() => {
+                    if (!confirm('Delete this quote?')) return
+                    startTransition(async () => { await deleteQuote(q.id, deal.id); router.refresh() })
+                  }}
+                  className="ml-auto text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
+                >
+                  <Trash2 size={13} />
                 </button>
               )}
             </div>
@@ -808,7 +851,7 @@ export function EstimationWorkspace({
         {activeTab === 'plans' && <ViewPlansTab deal={deal} canUpload={canUpload} isContractor={isContractor} readOnly={readOnly} />}
         {activeTab === 'measurements' && <MeasurementsTab deal={deal} readOnly={readOnly} />}
         {activeTab === 'comments' && <CommentsTab deal={deal} currentUserId={currentUserId} />}
-        {activeTab === 'quote' && <QuoteTab deal={deal} isContractor={isContractor} readOnly={readOnly} />}
+        {activeTab === 'quote' && <QuoteTab deal={deal} isContractor={isContractor} readOnly={isContractor ? false : readOnly} />}
       </div>
     </div>
   )

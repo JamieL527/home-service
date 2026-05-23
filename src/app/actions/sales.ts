@@ -4,6 +4,72 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { sendQuoteEmail } from '@/lib/email'
+import { generateInvoicePdf } from '@/lib/generate-invoice'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
+
+type LineItem = { description: string; quantity: number; unitPrice: number }
+
+async function generateAndUploadInvoicePdf(
+  dealId: string,
+  quoteVersion: number,
+  lineItems: LineItem[],
+  subtotal: number,
+  tax: number,
+  total: number,
+  notes?: string | null,
+): Promise<string | null> {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: dealId },
+      include: {
+        lead: {
+          include: {
+            contacts: true,
+            jobs: {
+              where: { companyId: { not: null } },
+              include: { company: { select: { name: true, logoUrl: true } } },
+              take: 1,
+            },
+          },
+        },
+      },
+    })
+    if (!deal) return null
+
+    const company = deal.lead.jobs[0]?.company
+    const buffer = await generateInvoicePdf({
+      invoiceNumber: `${dealId.slice(0, 8).toUpperCase()}-V${quoteVersion}`,
+      contractorName: company?.name ?? 'Contractor',
+      contractorLogoUrl: company?.logoUrl ?? null,
+      clientName: deal.clientName || deal.lead.contacts[0]?.name || 'Valued Client',
+      projectName: deal.projectName || deal.lead.address,
+      projectAddress: deal.lead.address,
+      lineItems,
+      subtotal,
+      tax,
+      total,
+      notes,
+      date: new Date().toLocaleDateString('en-CA'),
+    })
+
+    const path = `invoices/${dealId}/v${quoteVersion}.pdf`
+    const { error } = await supabaseAdmin.storage
+      .from('deal-plans')
+      .upload(path, buffer, { contentType: 'application/pdf', upsert: true })
+    if (error) throw error
+
+    const { data } = supabaseAdmin.storage.from('deal-plans').getPublicUrl(path)
+    return data.publicUrl
+  } catch (err) {
+    console.error('Failed to generate invoice PDF:', err)
+    return null
+  }
+}
 
 async function requireSalesOrAdmin() {
   const jar = await cookies()
@@ -23,6 +89,7 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
           jobs: { where: { companyId: { not: null } }, include: { company: { select: { logoUrl: true } } }, take: 1 },
         },
       },
+      quotes: { orderBy: { version: 'desc' }, take: 5, select: { pdfUrl: true, version: true } },
     },
   })
   if (!deal) return
@@ -30,6 +97,17 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
   const toEmail = contactEmail || process.env.RESEND_TO_OVERRIDE || ''
   if (!toEmail) return
   const logoUrl = deal.lead.jobs[0]?.company?.logoUrl ?? null
+
+  // Find the PDF from the contractor's submitted quote
+  const pdfUrl = deal.quotes.find(q => q.pdfUrl)?.pdfUrl ?? null
+  let pdfBuffer: Buffer | null = null
+  if (pdfUrl) {
+    try {
+      const res = await fetch(pdfUrl)
+      if (res.ok) pdfBuffer = Buffer.from(await res.arrayBuffer())
+    } catch { /* skip attachment if fetch fails */ }
+  }
+
   await sendQuoteEmail({
     to: toEmail,
     projectName: deal.projectName || deal.lead.address,
@@ -41,6 +119,7 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
     total,
     notes,
     logoUrl,
+    pdfBuffer,
   }).catch(err => console.error('Failed to send quote email:', err))
 }
 
@@ -144,6 +223,7 @@ export async function createQuote(
     total: number
     notes?: string
     submit: boolean
+    generatePdf?: boolean
   },
 ) {
   const agg = await prisma.quote.aggregate({
@@ -157,6 +237,11 @@ export async function createQuote(
   const isContractorRole = role === 'CONTRACTOR'
   const submitStatus = !data.submit ? 'draft' : isContractorRole ? 'pending_review' : 'submitted'
 
+  let pdfUrl: string | null = null
+  if (data.generatePdf || data.submit) {
+    pdfUrl = await generateAndUploadInvoicePdf(dealId, version, data.lineItems, data.subtotal, data.tax, data.total, data.notes)
+  }
+
   await prisma.quote.create({
     data: {
       dealId,
@@ -168,6 +253,7 @@ export async function createQuote(
       notes: data.notes ?? null,
       status: submitStatus,
       submittedAt: data.submit ? new Date() : null,
+      pdfUrl,
     },
   })
   if (data.submit && !isContractorRole) {
@@ -194,9 +280,23 @@ export async function updateQuote(
     total: number
     notes?: string
     submit: boolean
+    generatePdf?: boolean
   },
 ) {
-  await requireSalesOrAdmin()
+  const jar2 = await cookies()
+  const role2 = jar2.get('user-role')?.value
+  const isContractorRole2 = role2 === 'CONTRACTOR'
+
+  let pdfUrl: string | undefined
+  if (data.generatePdf || data.submit) {
+    const existing = await prisma.quote.findUnique({ where: { id: quoteId }, select: { version: true } })
+    if (existing) {
+      const url = await generateAndUploadInvoicePdf(dealId, existing.version, data.lineItems, data.subtotal, data.tax, data.total, data.notes)
+      if (url) pdfUrl = url
+    }
+  }
+
+  const submitStatus = !data.submit ? 'draft' : isContractorRole2 ? 'pending_review' : 'submitted'
   const quote = await prisma.quote.update({
     where: { id: quoteId },
     data: {
@@ -205,13 +305,12 @@ export async function updateQuote(
       tax: data.tax,
       total: data.total,
       notes: data.notes ?? null,
-      status: data.submit ? 'submitted' : 'draft',
+      status: submitStatus,
       submittedAt: data.submit ? new Date() : null,
+      ...(pdfUrl ? { pdfUrl } : {}),
     },
   })
-  const jar2 = await cookies()
-  const role2 = jar2.get('user-role')?.value
-  if (data.submit && (role2 === 'SALES' || role2 === 'ADMIN')) {
+  if (data.submit && !isContractorRole2) {
     await maybeSendQuoteEmail(dealId, data.lineItems, data.subtotal, data.tax, data.total, data.notes, quote.version)
     const QUOTE_SENT_IDX = STAGE_ORDER.indexOf('QUOTE_SENT')
     const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { currentStage: true } })
@@ -247,6 +346,14 @@ export async function submitDraftQuote(quoteId: string, dealId: string) {
   await maybeSendQuoteEmail(dealId, lineItems, quote.subtotal ?? 0, quote.tax ?? 0, quote.total ?? 0, quote.notes, quote.version)
 
   revalidatePath(`/sales/deals/${dealId}`)
+  revalidatePath('/sales/pipeline')
+  revalidatePath('/admin/sales')
+}
+
+export async function deleteQuote(quoteId: string, dealId: string) {
+  await prisma.quote.delete({ where: { id: quoteId } })
+  revalidatePath(`/sales/deals/${dealId}`)
+  revalidatePath(`/contractor/jobs`)
   revalidatePath('/sales/pipeline')
   revalidatePath('/admin/sales')
 }

@@ -257,5 +257,5 @@ export async function logout() {
   await supabase.auth.signOut()
   const cookieStore = await cookies()
   cookieStore.delete('user-role')
-  redirect('/login')
+  redirect('/')
 }

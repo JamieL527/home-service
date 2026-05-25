@@ -4,12 +4,17 @@ import { useActionState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '@/app/actions/auth'
-import { Button } from '@/components/ui/button'
+import { PublicHeader } from '@/components/landing/public-header'
 
 const URL_ERRORS: Record<string, string> = {
   account_suspended: 'Your account has been suspended. Please contact an administrator.',
   account_rejected:  'Your account has been rejected. Please contact support.',
 }
+
+const inputClass =
+  'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00FFFF]/50 focus:border-[#00FFFF]/50 transition-all text-sm'
+
+const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5'
 
 function LoginForm() {
   const [state, action, isPending] = useActionState(login, null)
@@ -17,78 +22,70 @@ function LoginForm() {
   const urlError = URL_ERRORS[searchParams.get('error') ?? '']
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-sm">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Enter your account credentials
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#05050A] text-white font-medium">
+      <PublicHeader />
+      <div className="flex items-center justify-center py-20 px-4">
+        <div className="w-full max-w-sm">
+          <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+            <div className="mb-8">
+              <h1 className="text-3xl font-[family-name:var(--font-teko)] font-bold uppercase tracking-wider">Sign In</h1>
+              <p className="mt-1 text-sm text-gray-400">Enter your account credentials</p>
+            </div>
 
-        <form action={action} className="space-y-4">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="email"
-              className="text-sm font-medium text-foreground"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              placeholder="you@example.com"
-              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            />
+            <form action={action} className="space-y-5">
+              <div>
+                <label htmlFor="email" className={labelClass}>Email</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="you@example.com"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className={labelClass}>Password</label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
+              </div>
+
+              {(urlError || state?.error) && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                  {urlError ?? state?.error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isPending}
+                className="w-full bg-[#00FFFF] text-[#05050A] py-3 rounded-lg font-semibold shadow-lg shadow-[#00FFFF]/20 hover:shadow-[#00FFFF]/40 hover:bg-[#00FFFF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {isPending ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+
+            <div className="mt-6 flex flex-col items-center gap-2 text-sm text-gray-400">
+              <Link href="/forgot-password" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                Forgot password?
+              </Link>
+              <span>
+                Don&apos;t have an account?{' '}
+                <Link href="/register" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                  Register
+                </Link>
+              </span>
+            </div>
           </div>
-
-          <div className="space-y-1.5">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium text-foreground"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              placeholder="••••••••"
-              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-
-          {(urlError || state?.error) && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {urlError ?? state?.error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            size="lg"
-            disabled={isPending}
-            className="w-full"
-          >
-            {isPending ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
-
-        <div className="mt-4 flex flex-col items-center gap-2 text-sm text-muted-foreground">
-          <Link href="/forgot-password" className="text-primary underline-offset-4 hover:underline">
-            Forgot password?
-          </Link>
-          <span>
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-              Register
-            </Link>
-          </span>
         </div>
       </div>
     </div>

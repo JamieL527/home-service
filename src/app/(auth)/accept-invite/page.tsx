@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { PublicHeader } from '@/components/landing/public-header'
 
 type ErrorType = 'expired' | 'invalid' | 'generic'
 
@@ -69,70 +70,29 @@ export default function AcceptInvitePage() {
     process()
   }, [router])
 
-  if (errorType === 'expired') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm text-center">
-          <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-amber-600 text-xl">⏱</span>
-          </div>
-          <h1 className="text-lg font-semibold text-foreground mb-2">Invitation Expired</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            This invitation link has expired. Please contact your administrator to send a new invitation.
-          </p>
-          <Link
-            href="/login"
-            className="inline-block w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
+  const card = (title: string, message: string, icon: string) => (
+    <div className="min-h-screen bg-[#05050A] text-white font-medium">
+      <PublicHeader />
+      <div className="flex items-center justify-center py-20 px-4">
+        <div className="w-full max-w-sm bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl text-center">
+          <div className="text-4xl mb-4">{icon}</div>
+          <h1 className="text-3xl font-[family-name:var(--font-teko)] font-bold uppercase tracking-wider mb-3">{title}</h1>
+          <p className="text-sm text-gray-400 mb-6">{message}</p>
+          <Link href="/login" className="block w-full bg-[#00FFFF] text-[#05050A] py-3 rounded-lg font-semibold shadow-lg shadow-[#00FFFF]/20 hover:shadow-[#00FFFF]/40 hover:bg-[#00FFFF]/90 transition-all">
             Back to Login
           </Link>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
 
-  if (errorType === 'invalid') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm text-center">
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-red-600 text-xl">✕</span>
-          </div>
-          <h1 className="text-lg font-semibold text-foreground mb-2">Invalid Invitation</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            This invitation link is invalid or has already been used. Please contact your administrator.
-          </p>
-          <Link
-            href="/login"
-            className="inline-block w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Back to Login
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  if (errorType === 'generic') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm text-center">
-          <h1 className="text-lg font-semibold text-foreground mb-2">Something went wrong</h1>
-          <p className="text-sm text-muted-foreground mb-6">{genericMessage}</p>
-          <Link
-            href="/login"
-            className="inline-block w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Back to Login
-          </Link>
-        </div>
-      </div>
-    )
-  }
+  if (errorType === 'expired') return card('Invitation Expired', 'This invitation link has expired. Please contact your administrator to send a new invitation.', '⏱')
+  if (errorType === 'invalid') return card('Invalid Invitation', 'This invitation link is invalid or has already been used. Please contact your administrator.', '✕')
+  if (errorType === 'generic') return card('Something Went Wrong', genericMessage ?? 'An unexpected error occurred.', '⚠️')
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-sm text-muted-foreground">Processing your invitation…</p>
+    <div className="flex min-h-screen items-center justify-center bg-[#05050A]">
+      <p className="text-sm text-gray-500">Processing your invitation…</p>
     </div>
   )
 }

@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     if (
+      pathname === '/' ||
       pathname === '/login' ||
       pathname === '/register' ||
       pathname.startsWith('/register/') ||
@@ -23,7 +24,11 @@ export async function proxy(request: NextRequest) {
       pathname === '/forgot-password' ||
       pathname === '/reset-password' ||
       pathname === '/auth/callback' ||
-      pathname.startsWith('/api/auth/')
+      pathname.startsWith('/api/auth/') ||
+      pathname === '/network' ||
+      pathname === '/market' ||
+      pathname === '/future' ||
+      pathname === '/terms'
     ) {
       return supabaseResponse
     }

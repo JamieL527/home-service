@@ -2,17 +2,20 @@
 
 import { useActionState, useRef, useState } from 'react'
 import { saveBusinessProfile } from '@/app/actions/auth'
-import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import {
+  Building2, Hash, MapPin, Globe, ImageIcon, Wrench,
+  User, Briefcase, Mail, Phone, Shield, ShieldCheck,
+} from 'lucide-react'
 
 const inputClass =
-  'flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50'
+  'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00FFFF]/50 focus:border-[#00FFFF]/50 transition-all text-sm'
 
-const labelClass = 'text-sm font-medium text-foreground'
+const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5'
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-sm font-semibold text-foreground border-b border-border pb-2 mb-4">
+    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-white/10 pb-2 mb-4">
       {children}
     </h2>
   )
@@ -26,6 +29,7 @@ function Field({
   required,
   placeholder,
   defaultValue,
+  icon: Icon,
 }: {
   id: string
   label: string
@@ -34,12 +38,16 @@ function Field({
   required?: boolean
   placeholder?: string
   defaultValue?: string
+  icon?: React.ElementType
 }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className={labelClass}>
-        {label}
-        {!required && <span className="ml-1 text-xs text-muted-foreground">(optional)</span>}
+        <span className="flex items-center gap-1.5">
+          {Icon && <Icon className="w-3.5 h-3.5" />}
+          {label}
+          {!required && <span className="ml-1 text-xs text-gray-500 normal-case font-normal">(optional)</span>}
+        </span>
       </label>
       <input
         id={id}
@@ -101,16 +109,16 @@ export function BusinessProfileForm({
   }
 
   return (
-    <div className="min-h-screen bg-background py-10 px-4">
-      <div className="mx-auto w-full max-w-lg rounded-xl border border-border bg-card p-8 shadow-sm">
+    <div className="min-h-screen bg-[#05050A] text-white font-medium py-10 px-4">
+      <div className="mx-auto w-full max-w-lg bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
         {verified && (
-          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <div className="mb-6 rounded-lg border border-[#00FFFF]/30 bg-[#00FFFF]/10 px-4 py-3 text-sm text-[#00FFFF]">
             Email verified! Please complete your business profile.
           </div>
         )}
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-foreground">Complete your business profile</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <div className="mb-8">
+          <h1 className="text-3xl font-[family-name:var(--font-teko)] font-bold uppercase tracking-wider">Business Profile</h1>
+          <p className="mt-1 text-sm text-gray-400">
             {initialValues?.name
               ? 'Update the information below and resubmit for review.'
               : 'This information will be reviewed by our team before your account is approved.'}
@@ -130,6 +138,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="Acme Construction Inc."
                 defaultValue={initialValues?.name}
+                icon={Building2}
               />
               <Field
                 id="businessNumber"
@@ -138,6 +147,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="123456789"
                 defaultValue={initialValues?.businessNumber}
+                icon={Hash}
               />
               <Field
                 id="address"
@@ -146,6 +156,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="123 Main St, Toronto, ON M1A 1A1"
                 defaultValue={initialValues?.address}
+                icon={MapPin}
               />
               <Field
                 id="website"
@@ -153,34 +164,40 @@ export function BusinessProfileForm({
                 name="website"
                 placeholder="e.g. example.com or https://example.com"
                 defaultValue={initialValues?.website}
+                icon={Globe}
               />
               <div className="space-y-1.5">
                 <label className={labelClass}>
-                  Company Logo
-                  <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
+                  <span className="flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    Company Logo
+                    <span className="ml-1 text-xs text-gray-500 normal-case font-normal">(optional)</span>
+                  </span>
                 </label>
                 <div className="flex items-center gap-3">
                   {logoUrl && (
-                    <img src={logoUrl} alt="Logo preview" className="h-12 w-12 rounded-lg object-contain border border-border bg-muted" />
+                    <img src={logoUrl} alt="Logo preview" className="h-12 w-12 rounded-lg object-contain border border-white/20 bg-white/5" />
                   )}
                   <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoFile} />
                   <button
                     type="button"
                     onClick={() => logoRef.current?.click()}
                     disabled={logoUploading}
-                    className="text-sm font-medium text-primary border border-border rounded-lg px-3 py-1.5 hover:bg-accent transition-colors disabled:opacity-50"
+                    className="text-sm font-semibold text-[#00FFFF] border border-[#00FFFF]/30 rounded-lg px-3 py-1.5 hover:bg-[#00FFFF]/10 transition-colors disabled:opacity-50"
                   >
                     {logoUploading ? 'Uploading…' : logoUrl ? 'Change Logo' : 'Upload Logo'}
                   </button>
                   {logoUrl && (
-                    <button type="button" onClick={() => setLogoUrl('')} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+                    <button type="button" onClick={() => setLogoUrl('')} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Remove</button>
                   )}
                 </div>
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="tradeType" className={labelClass}>
-                  Trade / Service Type
-                  <span className="ml-1 text-xs text-muted-foreground">(required)</span>
+                  <span className="flex items-center gap-1.5">
+                    <Wrench className="w-3.5 h-3.5" />
+                    Trade / Service Type
+                  </span>
                 </label>
                 <select
                   id="tradeType"
@@ -218,6 +235,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="Jane Smith"
                 defaultValue={initialValues?.contactName}
+                icon={User}
               />
               <Field
                 id="contactTitle"
@@ -226,6 +244,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="Owner / Project Manager"
                 defaultValue={initialValues?.contactTitle}
+                icon={Briefcase}
               />
               <Field
                 id="contactEmail"
@@ -235,6 +254,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="jane@yourcompany.com"
                 defaultValue={initialValues?.contactEmail}
+                icon={Mail}
               />
               <Field
                 id="contactPhone"
@@ -244,6 +264,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="+1 (416) 555-0100"
                 defaultValue={initialValues?.contactPhone}
+                icon={Phone}
               />
             </div>
           </div>
@@ -258,6 +279,7 @@ export function BusinessProfileForm({
                 required
                 placeholder="1234567"
                 defaultValue={initialValues?.wsibNumber}
+                icon={Shield}
               />
               <Field
                 id="insuranceNumber"
@@ -266,36 +288,41 @@ export function BusinessProfileForm({
                 required
                 placeholder="INS-987654321"
                 defaultValue={initialValues?.insuranceNumber}
+                icon={ShieldCheck}
               />
             </div>
           </div>
 
           {state && 'error' in state && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
               {state.error}
             </p>
           )}
 
-          <div className="space-y-4 border-t border-border pt-4">
+          <div className="space-y-4 border-t border-white/10 pt-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 name="termsAccepted"
-                className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#00FFFF]"
                 required
               />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-gray-400">
                 I agree to the{' '}
-                <span className="text-primary underline-offset-4 hover:underline cursor-pointer">
+                <a href="/terms" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
                   Terms & Conditions
-                </span>{' '}
+                </a>{' '}
                 and confirm that all information provided is accurate.
               </span>
             </label>
 
-            <Button type="submit" size="lg" className="w-full" disabled={isPending}>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="w-full bg-[#00FFFF] text-[#05050A] py-3 rounded-lg font-semibold shadow-lg shadow-[#00FFFF]/20 hover:shadow-[#00FFFF]/40 hover:bg-[#00FFFF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {isPending ? 'Submitting…' : 'Submit application'}
-            </Button>
+            </button>
           </div>
         </form>
       </div>

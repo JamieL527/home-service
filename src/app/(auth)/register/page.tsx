@@ -3,14 +3,14 @@
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { register } from '@/app/actions/auth'
-import { Button } from '@/components/ui/button'
 import { PasswordStrength } from '@/components/ui/password-strength'
 import { isPasswordValid } from '@/lib/validations/password'
+import { PublicHeader } from '@/components/landing/public-header'
 
 const inputClass =
-  'flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50'
+  'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00FFFF]/50 focus:border-[#00FFFF]/50 transition-all text-sm'
 
-const labelClass = 'text-sm font-medium text-foreground'
+const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5'
 
 export default function RegisterPage() {
   const [state, action, isPending] = useActionState(register, null)
@@ -19,83 +19,82 @@ export default function RegisterPage() {
   const canSubmit = !isPending && isPasswordValid(password)
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-sm">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-foreground">Create your account</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Register to get started as a contractor
-          </p>
-        </div>
-
-        <form action={action} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label htmlFor="firstName" className={labelClass}>First Name</label>
-              <input
-                id="firstName"
-                name="firstName"
-                placeholder="Jane"
-                className={inputClass}
-              />
+    <div className="min-h-screen bg-[#05050A] text-white font-medium">
+      <PublicHeader />
+      <div className="flex items-center justify-center py-20 px-4">
+        <div className="w-full max-w-sm">
+          <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+            <div className="mb-8">
+              <h1 className="text-3xl font-[family-name:var(--font-teko)] font-bold uppercase tracking-wider">Create Account</h1>
+              <p className="mt-1 text-sm text-gray-400">Register to get started as a contractor</p>
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="lastName" className={labelClass}>Last Name</label>
-              <input
-                id="lastName"
-                name="lastName"
-                placeholder="Smith"
-                className={inputClass}
-              />
-            </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="email" className={labelClass}>Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              placeholder="you@example.com"
-              className={inputClass}
-            />
-          </div>
+            <form action={action} className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="firstName" className={labelClass}>First Name</label>
+                  <input id="firstName" name="firstName" placeholder="Jane" className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className={labelClass}>Last Name</label>
+                  <input id="lastName" name="lastName" placeholder="Smith" className={inputClass} />
+                </div>
+              </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className={labelClass}>Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a strong password"
-              className={inputClass}
-            />
-            <PasswordStrength password={password} />
-          </div>
+              <div>
+                <label htmlFor="email" className={labelClass}>Email</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="you@example.com"
+                  className={inputClass}
+                />
+              </div>
 
-          {state && 'error' in state && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {state.error}
+              <div>
+                <label htmlFor="password" className={labelClass}>Password</label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Create a strong password"
+                  className={inputClass}
+                />
+                <div className="mt-2">
+                  <PasswordStrength password={password} />
+                </div>
+              </div>
+
+              {state && 'error' in state && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                  {state.error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="w-full bg-[#00FFFF] text-[#05050A] py-3 rounded-lg font-semibold shadow-lg shadow-[#00FFFF]/20 hover:shadow-[#00FFFF]/40 hover:bg-[#00FFFF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {isPending ? 'Creating account…' : 'Create account'}
+              </button>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-gray-400">
+              Already have an account?{' '}
+              <Link href="/login" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                Sign in
+              </Link>
             </p>
-          )}
-
-          <Button type="submit" size="lg" disabled={!canSubmit} className="w-full">
-            {isPending ? 'Creating account…' : 'Create account'}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-            Sign in
-          </Link>
-        </p>
+          </div>
+        </div>
       </div>
     </div>
   )

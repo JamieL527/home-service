@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
 import { PasswordStrength } from '@/components/ui/password-strength'
 import { isPasswordValid } from '@/lib/validations/password'
+import { PublicHeader } from '@/components/landing/public-header'
 
 const inputClass =
-  'flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+  'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00FFFF]/50 focus:border-[#00FFFF]/50 transition-all text-sm'
+
+const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5'
 
 export default function SetPasswordPage() {
   const router = useRouter()
@@ -36,57 +38,66 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <div className="w-full max-w-sm mx-4 rounded-xl border border-border bg-card p-8 shadow-lg">
-        <h1 className="text-xl font-semibold text-foreground">Set your password</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Create a password to access your account in the future.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-foreground">
-              New password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoFocus
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a strong password"
-              className={inputClass}
-            />
-            <PasswordStrength password={password} />
+    <div className="min-h-screen bg-[#05050A] text-white font-medium">
+      <PublicHeader />
+      <div className="flex items-center justify-center py-20 px-4">
+        <div className="w-full max-w-sm bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+          <div className="mb-8">
+            <h1 className="text-3xl font-[family-name:var(--font-teko)] font-bold uppercase tracking-wider">Set Password</h1>
+            <p className="mt-1 text-sm text-gray-400">Create a password to access your account in the future.</p>
           </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-              Confirm password
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              required
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Repeat your password"
-              className={inputClass}
-            />
-            {confirm && !passwordsMatch && (
-              <p className="text-xs text-destructive">Passwords do not match.</p>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="password" className={labelClass}>New Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a strong password"
+                className={inputClass}
+              />
+              <div className="mt-2">
+                <PasswordStrength password={password} />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className={labelClass}>Confirm Password</label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                required
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Repeat your password"
+                className={inputClass}
+              />
+              {confirm && !passwordsMatch && (
+                <p className="mt-1.5 text-xs text-red-400">Passwords do not match.</p>
+              )}
+            </div>
+
+            {error && (
+              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                {error}
+              </p>
             )}
-          </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <Button type="submit" className="w-full" disabled={!canSubmit}>
-            {pending ? 'Saving…' : 'Set password & continue'}
-          </Button>
-        </form>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full bg-[#00FFFF] text-[#05050A] py-3 rounded-lg font-semibold shadow-lg shadow-[#00FFFF]/20 hover:shadow-[#00FFFF]/40 hover:bg-[#00FFFF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pending ? 'Saving…' : 'Set password & continue'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )

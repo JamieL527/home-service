@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { LandingPage } from '@/components/landing/landing-page'
 
 const ROLE_ROUTES: Record<string, string> = {
   ADMIN:          '/admin/dashboard',
@@ -15,7 +16,7 @@ export default async function RootPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user?.email) {
-    redirect('/login')
+    return <LandingPage />
   }
 
   const prismaUser = await prisma.user.findFirst({

@@ -85,7 +85,7 @@ export default async function CollectorRoutePage({
         <RouteMap apiKey={apiKey} polygon={polygon} color={task.color} center={center} />
 
         {/* Action buttons */}
-        <div className="absolute bottom-24 sm:bottom-8 left-0 right-0 flex justify-center items-center gap-3 px-4 pointer-events-none z-50">
+        <div className="absolute bottom-32 sm:bottom-8 left-0 right-0 flex justify-center items-center gap-3 px-4 pointer-events-none z-50">
 
           {/* Available: Accept */}
           {isAvailable && (

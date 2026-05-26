@@ -237,6 +237,27 @@ function GpsAccuracyCircle({ position, accuracy }: { position: LatLng; accuracy:
   return null
 }
 
+function GpsTrailLine({ trail }: { trail: LatLng[] }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!map || trail.length < 2) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+    const line = new g.maps.Polyline({
+      path: trail,
+      geodesic: true,
+      strokeColor: '#4285F4',
+      strokeOpacity: 0.8,
+      strokeWeight: 4,
+      zIndex: 20,
+    })
+    line.setMap(map)
+    return () => line.setMap(null)
+  }, [map, trail])
+  return null
+}
+
 function MapCameraUpdater({ coords, pinDropped }: { coords: { lat: number; lng: number }; pinDropped: boolean }) {
   const map = useMap()
   
@@ -291,10 +312,11 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
   const [isLocating, setIsLocating] = useState(false)
   const [navigatingToStart, setNavigatingToStart] = useState(false)
 
-  // Continuous GPS tracking for blue dot + heading
+  // Continuous GPS tracking for blue dot + heading + trail
   const [userGpsPos, setUserGpsPos]           = useState<LatLng | null>(null)
   const [userGpsAccuracy, setUserGpsAccuracy] = useState(0)
   const [userHeading, setUserHeading]         = useState<number | null>(null)
+  const [gpsTrail, setGpsTrail]               = useState<LatLng[]>([])
   const gpsWatchRef                           = useRef<number | null>(null)
   const lastGpsPosRef                         = useRef<LatLng | null>(null)
 
@@ -314,6 +336,14 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
             const angle = Math.atan2(dLng, dLat) * (180 / Math.PI)
             setUserHeading((angle + 360) % 360)
           }
+        }
+        // Append to trail if moved more than ~10m since last recorded point
+        const prev = lastGpsPosRef.current
+        const movedEnough = !prev ||
+          Math.abs(newPos.lat - prev.lat) > 0.0001 ||
+          Math.abs(newPos.lng - prev.lng) > 0.0001
+        if (movedEnough) {
+          setGpsTrail(t => [...t, newPos])
         }
         lastGpsPosRef.current = newPos
         setUserGpsPos(newPos)
@@ -850,6 +880,9 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
                   </div>
                 </AdvancedMarker>
               )}
+              {/* Blue trail line showing walked path */}
+              <GpsTrailLine trail={gpsTrail} />
+
               {/* Real-time GPS blue dot with heading arrow */}
               {userGpsPos && (
                 <>

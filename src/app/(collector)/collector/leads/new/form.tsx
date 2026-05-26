@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useActionState, useMemo } from 'react'
+import { useState, useRef, useEffect, useActionState, useMemo, useCallback } from 'react'
 import { APIProvider, Map, AdvancedMarker, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import { createClient } from '@/lib/supabase/client'
 import { createLead } from '@/app/actions/leads'
@@ -214,6 +214,29 @@ function DirectionsOverlay({ origin, destination, isVisible, apiKey }: {
 }
 
 // Map camera updater component
+function GpsAccuracyCircle({ position, accuracy }: { position: LatLng; accuracy: number }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!map) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+    const circle = new g.maps.Circle({
+      center: position,
+      radius: accuracy,
+      strokeColor: '#4285F4',
+      strokeOpacity: 0.3,
+      strokeWeight: 1,
+      fillColor: '#4285F4',
+      fillOpacity: 0.1,
+      zIndex: 5,
+    })
+    circle.setMap(map)
+    return () => circle.setMap(null)
+  }, [map, position, accuracy])
+  return null
+}
+
 function MapCameraUpdater({ coords, pinDropped }: { coords: { lat: number; lng: number }; pinDropped: boolean }) {
   const map = useMap()
   
@@ -267,6 +290,46 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
   const [pinDropped, setPinDropped] = useState(hasPrefilledLocation)
   const [isLocating, setIsLocating] = useState(false)
   const [navigatingToStart, setNavigatingToStart] = useState(false)
+
+  // Continuous GPS tracking for blue dot + heading
+  const [userGpsPos, setUserGpsPos]           = useState<LatLng | null>(null)
+  const [userGpsAccuracy, setUserGpsAccuracy] = useState(0)
+  const [userHeading, setUserHeading]         = useState<number | null>(null)
+  const gpsWatchRef                           = useRef<number | null>(null)
+  const lastGpsPosRef                         = useRef<LatLng | null>(null)
+
+  const startGpsWatch = useCallback(() => {
+    if (!navigator.geolocation) return
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        // Use GPS-provided heading if available, otherwise derive from movement
+        if (pos.coords.heading != null && !isNaN(pos.coords.heading)) {
+          setUserHeading(pos.coords.heading)
+        } else if (lastGpsPosRef.current) {
+          const prev = lastGpsPosRef.current
+          const dLat = newPos.lat - prev.lat
+          const dLng = newPos.lng - prev.lng
+          if (Math.abs(dLat) > 0.000005 || Math.abs(dLng) > 0.000005) {
+            const angle = Math.atan2(dLng, dLat) * (180 / Math.PI)
+            setUserHeading((angle + 360) % 360)
+          }
+        }
+        lastGpsPosRef.current = newPos
+        setUserGpsPos(newPos)
+        setUserGpsAccuracy(pos.coords.accuracy)
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    )
+  }, [])
+
+  useEffect(() => {
+    if (view === 'map') startGpsWatch()
+    return () => {
+      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current)
+    }
+  }, [view, startGpsWatch])
   const [isEditingAddress, setIsEditingAddress] = useState(false)
   const [addressInput, setAddressInput] = useState('')
   
@@ -451,38 +514,26 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
     }
   }
 
-  // Use GPS location
-  const locateAndPin = () => {
+  // Use GPS location — reuse already-running watchPosition result
+  const locateAndPin = async () => {
+    if (!userGpsPos) {
+      alert('Still acquiring GPS, please wait a moment.')
+      return
+    }
     setIsLocating(true)
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const currentLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-          setLocation(currentLoc)
-          setPinDropped(true)
-          
-          try {
-            const response = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${currentLoc.lat},${currentLoc.lng}&key=${GOOGLE_MAPS_API_KEY}&language=en`
-            )
-            const data = await response.json()
-            if (data.results && data.results.length > 0) {
-              setAddress(data.results[0].formatted_address)
-            }
-          } catch (error) {
-            console.error('Geocoding error:', error)
-          } finally {
-            setIsLocating(false)
-          }
-        },
-        () => {
-          alert('Please enable GPS location permission')
-          setIsLocating(false)
-        },
-        { enableHighAccuracy: true }
+    setLocation(userGpsPos)
+    setPinDropped(true)
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userGpsPos.lat},${userGpsPos.lng}&key=${GOOGLE_MAPS_API_KEY}&language=en`
       )
-    } else {
-      alert('Your device does not support GPS location')
+      const data = await response.json()
+      if (data.results && data.results.length > 0) {
+        setAddress(data.results[0].formatted_address)
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error)
+    } finally {
       setIsLocating(false)
     }
   }
@@ -713,39 +764,26 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
     }
   }
 
-  // Route to start point
-  const handleRouteToStart = () => {
+  // Route to start point — reuse already-running watchPosition result
+  const handleRouteToStart = async () => {
     if (!pinDropped) {
-      setIsLocating(true)
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const currentLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-            setLocation(currentLoc)
-            setPinDropped(true)
-            setNavigatingToStart(true)
-            setIsLocating(false)
-            try {
-              const response = await fetch(
-                `https://maps.googleapis.com/maps/api/geocode/json?latlng=${currentLoc.lat},${currentLoc.lng}&key=${GOOGLE_MAPS_API_KEY}&language=en`
-              )
-              const data = await response.json()
-              if (data.results && data.results.length > 0) {
-                setAddress(data.results[0].formatted_address)
-              }
-            } catch (e) {
-              console.error('Geocoding error:', e)
-            }
-          },
-          () => {
-            alert('Please allow GPS permissions.')
-            setIsLocating(false)
-          },
-          { enableHighAccuracy: true }
+      if (!userGpsPos) {
+        alert('Still acquiring GPS, please wait a moment.')
+        return
+      }
+      setLocation(userGpsPos)
+      setPinDropped(true)
+      setNavigatingToStart(true)
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userGpsPos.lat},${userGpsPos.lng}&key=${GOOGLE_MAPS_API_KEY}&language=en`
         )
-      } else {
-        alert('GPS not supported.')
-        setIsLocating(false)
+        const data = await response.json()
+        if (data.results && data.results.length > 0) {
+          setAddress(data.results[0].formatted_address)
+        }
+      } catch (e) {
+        console.error('Geocoding error:', e)
       }
     } else {
       setNavigatingToStart(true)
@@ -812,6 +850,39 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
                   </div>
                 </AdvancedMarker>
               )}
+              {/* Real-time GPS blue dot with heading arrow */}
+              {userGpsPos && (
+                <>
+                  <GpsAccuracyCircle position={userGpsPos} accuracy={userGpsAccuracy} />
+                  <AdvancedMarker position={userGpsPos} zIndex={100}>
+                    <div style={{ position: 'relative', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {/* SVG direction arrow — rotates around center */}
+                      {userHeading != null && (
+                        <svg
+                          width="44" height="44"
+                          viewBox="0 0 44 44"
+                          style={{
+                            position: 'absolute', top: 0, left: 0,
+                            transform: `rotate(${userHeading}deg)`,
+                            transformOrigin: 'center center',
+                          }}
+                        >
+                          <path d="M22 3 L15 20 L22 16 L29 20 Z" fill="rgba(66,133,244,0.75)" />
+                        </svg>
+                      )}
+                      {/* Blue dot */}
+                      <div style={{
+                        width: 18, height: 18, borderRadius: '50%',
+                        backgroundColor: '#4285F4',
+                        border: '3px solid white',
+                        boxShadow: '0 2px 8px rgba(66,133,244,0.6)',
+                        position: 'relative', zIndex: 1,
+                      }} />
+                    </div>
+                  </AdvancedMarker>
+                </>
+              )}
+
               {(() => {
                 const task = routeTasks.find(t => t.id === selectedTaskId)
                 if (!task) return null

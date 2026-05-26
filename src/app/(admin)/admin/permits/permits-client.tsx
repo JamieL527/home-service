@@ -9,7 +9,7 @@ import {
   useMap,
   type MapCameraChangedEvent,
 } from '@vis.gl/react-google-maps'
-import { Search, ChevronLeft, ChevronRight, Loader2, MapPin } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Loader2, MapPin, Flame } from 'lucide-react'
 
 type Permit = {
   id: string
@@ -85,6 +85,113 @@ function statusBadge(s: string | null): string {
   return BADGE_PALETTE[strHash(s) % BADGE_PALETTE.length]
 }
 
+type HeatCell = { grid_lat: number; grid_lng: number; cnt: number }
+
+const TOP_N = 50
+// Each grid cell is ROUND(lat,2) → spans ±0.005 degrees (~550m each side)
+const HALF = 0.005
+
+function cellColor(ratio: number): { fill: string; stroke: string } {
+  if (ratio > 0.75) return { fill: 'rgba(220,38,38,0.22)',  stroke: '#dc2626' }
+  if (ratio > 0.5)  return { fill: 'rgba(234,88,12,0.20)',  stroke: '#ea580c' }
+  if (ratio > 0.25) return { fill: 'rgba(202,138,4,0.18)',  stroke: '#ca8a04' }
+  return               { fill: 'rgba(37,99,235,0.15)',  stroke: '#2563eb' }
+}
+
+function badgeColor(ratio: number): { bg: string; border: string } {
+  if (ratio > 0.75) return { bg: '#dc2626', border: '#991b1b' }
+  if (ratio > 0.5)  return { bg: '#ea580c', border: '#9a3412' }
+  if (ratio > 0.25) return { bg: '#ca8a04', border: '#854d0e' }
+  return               { bg: '#2563eb', border: '#1e3a8a' }
+}
+
+function HeatmapCells({ cells, bounds, zoom }: { cells: HeatCell[]; bounds: Bounds | null; zoom: number }) {
+  const map = useMap()
+
+  // Filter to cells visible in current viewport, then take top N by count
+  const top = useMemo(() => {
+    const visible = bounds
+      ? cells.filter(c =>
+          c.grid_lat >= bounds.south && c.grid_lat <= bounds.north &&
+          c.grid_lng >= bounds.west  && c.grid_lng <= bounds.east
+        )
+      : cells
+    // cells already sorted DESC by cnt from API
+    return visible.slice(0, TOP_N)
+  }, [cells, bounds])
+
+  const maxCnt = top.length ? Number(top[0].cnt) : 1
+
+  // Draw grid rectangles via Google Maps API
+  useEffect(() => {
+    if (!map || !top.length) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!g) return
+
+    const rects = top.map(cell => {
+      const ratio = Number(cell.cnt) / maxCnt
+      const { fill, stroke } = cellColor(ratio)
+      return new g.maps.Rectangle({
+        bounds: {
+          north: cell.grid_lat + HALF,
+          south: cell.grid_lat - HALF,
+          east:  cell.grid_lng + HALF,
+          west:  cell.grid_lng - HALF,
+        },
+        strokeColor: stroke,
+        strokeOpacity: 0.7,
+        strokeWeight: 1.5,
+        fillColor: fill,
+        fillOpacity: 1,
+        map,
+        zIndex: Math.floor(ratio * 50),
+      })
+    })
+
+    return () => rects.forEach(r => r.setMap(null))
+  }, [map, top, maxCnt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Count badges — only show labels when zoomed in enough to avoid clutter
+  if (zoom < 12) return null
+  return (
+    <>
+      {top.map((cell, i) => {
+        const ratio = Number(cell.cnt) / maxCnt
+        const { bg, border } = badgeColor(ratio)
+        return (
+          <AdvancedMarker
+            key={`badge-${cell.grid_lat},${cell.grid_lng}`}
+            position={{ lat: cell.grid_lat, lng: cell.grid_lng }}
+            zIndex={TOP_N - i + 100}
+          >
+            <div style={{
+              backgroundColor: bg,
+              border: `2px solid ${border}`,
+              color: 'white',
+              borderRadius: 6,
+              padding: '3px 7px',
+              fontSize: 11,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+              lineHeight: 1.3,
+              textAlign: 'center',
+            }}>
+              {Number(cell.cnt).toLocaleString()}
+            </div>
+          </AdvancedMarker>
+        )
+      })}
+    </>
+  )
+}
+
+// Keep the old name as alias so the JSX below doesn't need changing
+function HeatmapOverlay({ cells, bounds, zoom }: { cells: HeatCell[]; bounds: Bounds | null; zoom: number }) {
+  return <HeatmapCells cells={cells} bounds={bounds} zoom={zoom} />
+}
+
 function MapController({ trigger, center }: { trigger: number; center: LatLng | null }) {
   const map = useMap()
   useEffect(() => {
@@ -126,6 +233,48 @@ export default function PermitsClient({ apiKey, statuses, permitTypes, totalCoun
   const [mapTotal, setMapTotal] = useState(0)
   const [mapOverLimit, setMapOverLimit] = useState(false)
   const [mapLoading, setMapLoading] = useState(false)
+
+  // ── Heatmap ───────────────────────────────────────────────────────────────
+  const [heatmapOn, setHeatmapOn]       = useState(false)
+  const [heatCells, setHeatCells]       = useState<HeatCell[]>([])
+  const [heatLoading, setHeatLoading]   = useState(false)
+
+  const loadHeatmap = useCallback(async (status: string, type: string, year: string) => {
+    setHeatLoading(true)
+    try {
+      const res = await fetch('/api/admin/permits/heatmap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status:     status     || undefined,
+          permitType: type       || undefined,
+          yearFrom:   year       || undefined,
+        }),
+      })
+      const data = await res.json()
+      setHeatCells(data.cells ?? [])
+    } finally {
+      setHeatLoading(false)
+    }
+  }, [])
+
+  const handleToggleHeatmap = () => {
+    if (!heatmapOn) {
+      setHeatmapOn(true)
+      loadHeatmap(statusFilter, typeFilter, yearFilter)
+    } else {
+      setHeatmapOn(false)
+    }
+  }
+
+  // Auto-refresh heatmap when filters change (only if heatmap is on)
+  useEffect(() => {
+    if (heatmapOn) loadHeatmap(statusFilter, typeFilter, yearFilter)
+  }, [statusFilter, typeFilter, yearFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Current map bounds + zoom (for heatmap viewport filtering) ──────────
+  const [currentBounds, setCurrentBounds] = useState<Bounds | null>(null)
+  const [currentZoom, setCurrentZoom]     = useState(12)
 
   // ── Map interaction ───────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -183,6 +332,8 @@ export default function PermitsClient({ apiKey, statuses, permitTypes, totalCoun
 
   const handleBoundsChanged = useCallback(
     (event: MapCameraChangedEvent) => {
+      setCurrentBounds(event.detail.bounds)
+      setCurrentZoom(event.detail.zoom)
       if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current)
       boundsTimerRef.current = setTimeout(() => {
         loadMapPermits(event.detail.bounds)
@@ -447,6 +598,19 @@ export default function PermitsClient({ apiKey, statuses, permitTypes, totalCoun
 
       {/* Map panel */}
       <div className={`flex-1 relative ${mobileView === 'map' ? 'flex' : 'hidden'} sm:flex`}>
+        {/* Heatmap toggle */}
+        <button
+          onClick={handleToggleHeatmap}
+          disabled={heatLoading}
+          className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-md border transition-colors ${
+            heatmapOn
+              ? 'bg-orange-500 text-white border-orange-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {heatLoading ? <Loader2 size={13} className="animate-spin" /> : <Flame size={13} />}
+          Heatmap
+        </button>
         <APIProvider apiKey={apiKey}>
           <GMap
             defaultCenter={TORONTO_CENTER}
@@ -457,6 +621,7 @@ export default function PermitsClient({ apiKey, statuses, permitTypes, totalCoun
             onBoundsChanged={handleBoundsChanged}
           >
             <MapController trigger={mapTrigger} center={mapCenter} />
+            {heatmapOn && <HeatmapOverlay cells={heatCells} bounds={currentBounds} zoom={currentZoom} />}
 
             {permitGroups.map(group => {
               const isSelected = infoKey === group.key

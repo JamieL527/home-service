@@ -10,6 +10,10 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
+    "@deck.gl/aggregation-layers": "^9.3.2",
+    "@deck.gl/core": "^9.3.2",
+    "@deck.gl/google-maps": "^9.3.2",
+    "@deck.gl/react": "^9.3.2",
     "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@react-google-maps/api": "^2.20.8",

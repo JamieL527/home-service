@@ -319,6 +319,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
   const [gpsTrail, setGpsTrail]               = useState<LatLng[]>([])
   const gpsWatchRef                           = useRef<number | null>(null)
   const lastGpsPosRef                         = useRef<LatLng | null>(null)
+  const lastTrailPointRef                     = useRef<LatLng | null>(null)
 
   const startGpsWatch = useCallback(() => {
     if (!navigator.geolocation) return
@@ -337,12 +338,13 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
             setUserHeading((angle + 360) % 360)
           }
         }
-        // Append to trail if moved more than ~10m since last recorded point
-        const prev = lastGpsPosRef.current
-        const movedEnough = !prev ||
-          Math.abs(newPos.lat - prev.lat) > 0.0001 ||
-          Math.abs(newPos.lng - prev.lng) > 0.0001
-        if (movedEnough) {
+        // Append to trail if moved more than ~3m since last recorded trail point
+        const lastTrail = lastTrailPointRef.current
+        const trailMoved = !lastTrail ||
+          Math.abs(newPos.lat - lastTrail.lat) > 0.00003 ||
+          Math.abs(newPos.lng - lastTrail.lng) > 0.00003
+        if (trailMoved) {
+          lastTrailPointRef.current = newPos
           setGpsTrail(t => [...t, newPos])
         }
         lastGpsPosRef.current = newPos

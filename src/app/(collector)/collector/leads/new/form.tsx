@@ -237,15 +237,17 @@ function GpsAccuracyCircle({ position, accuracy }: { position: LatLng; accuracy:
   return null
 }
 
-function GpsTrailLine({ trail }: { trail: LatLng[] }) {
+function GpsTrailLine({ trail, currentPos }: { trail: LatLng[]; currentPos: LatLng | null }) {
   const map = useMap()
   useEffect(() => {
-    if (!map || trail.length < 2) return
+    if (!map) return
+    const path = currentPos ? [...trail, currentPos] : trail
+    if (path.length < 2) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = (window as any).google
     if (!g) return
     const line = new g.maps.Polyline({
-      path: trail,
+      path,
       geodesic: true,
       strokeColor: '#4285F4',
       strokeOpacity: 0.8,
@@ -254,7 +256,7 @@ function GpsTrailLine({ trail }: { trail: LatLng[] }) {
     })
     line.setMap(map)
     return () => line.setMap(null)
-  }, [map, trail])
+  }, [map, trail, currentPos])
   return null
 }
 
@@ -883,7 +885,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
                 </AdvancedMarker>
               )}
               {/* Blue trail line showing walked path */}
-              <GpsTrailLine trail={gpsTrail} />
+              <GpsTrailLine trail={gpsTrail} currentPos={userGpsPos} />
 
               {/* Real-time GPS blue dot with heading arrow */}
               {userGpsPos && (

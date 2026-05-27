@@ -890,7 +890,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
               {/* Real-time GPS blue dot with heading arrow */}
               {userGpsPos && (
                 <>
-                  {/* GpsAccuracyCircle removed - was obscuring trail-to-dot connection */}
+                  <GpsAccuracyCircle position={userGpsPos} accuracy={userGpsAccuracy} />
                   <AdvancedMarker position={userGpsPos} zIndex={100}>
                     <div style={{ position: 'relative', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {/* SVG direction arrow — rotates around center */}

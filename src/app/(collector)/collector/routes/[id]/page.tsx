@@ -40,7 +40,7 @@ export default async function CollectorRoutePage({
   })
 
   if (!task) notFound()
-  if (user.zoneId && task.zoneId !== user.zoneId) notFound()
+  if (user.zones.length > 0 && !user.zones.some(z => z.id === task.zoneId)) notFound()
 
   const polygon = (task.polygon as LatLng[]) ?? []
   const center = polygon.length > 0 ? centroid(polygon) : { lat: 43.6532, lng: -79.3832 }

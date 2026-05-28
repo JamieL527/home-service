@@ -42,10 +42,10 @@ export default async function CollectorDashboardPage() {
     prisma.lead.count({ where: { createdById: user.id, createdAt: { gte: todayStart } } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'DRAFT' as never }, orderBy: { updatedAt: 'desc' } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'NEEDS_FIX' as never }, orderBy: { updatedAt: 'desc' } }),
-    user.zoneId
+    user.zones.length > 0
       ? prisma.routeTask.findMany({
           where: {
-            zoneId: user.zoneId,
+            zoneId: { in: user.zones.map(z => z.id) },
             OR: [
               { status: 'active', assignedToId: null },
               { assignedToId: user.id },
@@ -72,10 +72,14 @@ export default async function CollectorDashboardPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Field Command</h1>
           <p className="text-sm text-gray-500 mt-0.5">Your lead collection workspace</p>
-          {user.zone && (
-            <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1">
-              <MapPin size={11} />
-              {user.zone.name}
+          {user.zones.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {user.zones.map(z => (
+                <div key={z.id} className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1">
+                  <MapPin size={11} />
+                  {z.name}
+                </div>
+              ))}
             </div>
           )}
         </div>

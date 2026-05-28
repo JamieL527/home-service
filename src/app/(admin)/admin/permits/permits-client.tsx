@@ -120,8 +120,6 @@ function HeatmapCells({ cells, bounds, zoom }: { cells: HeatCell[]; bounds: Boun
     return visible.slice(0, TOP_N)
   }, [cells, bounds])
 
-  const maxCnt = top.length ? Number(top[0].cnt) : 1
-
   // Draw grid rectangles via Google Maps API
   useEffect(() => {
     if (!map || !top.length) return
@@ -129,8 +127,8 @@ function HeatmapCells({ cells, bounds, zoom }: { cells: HeatCell[]; bounds: Boun
     const g = (window as any).google
     if (!g) return
 
-    const rects = top.map(cell => {
-      const ratio = Number(cell.cnt) / maxCnt
+    const rects = top.map((cell, i) => {
+      const ratio = top.length > 1 ? 1 - i / (top.length - 1) : 1
       const { fill, stroke } = cellColor(ratio)
       return new g.maps.Rectangle({
         bounds: {
@@ -150,14 +148,14 @@ function HeatmapCells({ cells, bounds, zoom }: { cells: HeatCell[]; bounds: Boun
     })
 
     return () => rects.forEach(r => r.setMap(null))
-  }, [map, top, maxCnt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [map, top]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Count badges — only show labels when zoomed in enough to avoid clutter
   if (zoom < 12) return null
   return (
     <>
       {top.map((cell, i) => {
-        const ratio = Number(cell.cnt) / maxCnt
+        const ratio = top.length > 1 ? 1 - i / (top.length - 1) : 1
         const { bg, border } = badgeColor(ratio)
         return (
           <AdvancedMarker

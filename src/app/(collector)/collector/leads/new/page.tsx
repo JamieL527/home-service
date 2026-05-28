@@ -12,10 +12,11 @@ export default async function NewLeadPage({
   const { user } = await requireCollectorUser()
   const { taskId, lat, lng, address } = await searchParams
 
-  const routeTasks = user.zoneId
+  const zoneIds = user.zones.map(z => z.id)
+  const routeTasks = zoneIds.length > 0
     ? await prisma.routeTask.findMany({
         where: {
-          zoneId: user.zoneId,
+          zoneId: { in: zoneIds },
           OR: [
             { status: 'active', assignedToId: null },
             { assignedToId: user.id },
@@ -26,6 +27,8 @@ export default async function NewLeadPage({
       })
     : []
 
+  const firstZone = user.zones[0] ?? null
+
   return (
     <div className="max-w-2xl">
       <div className="mb-5">
@@ -33,8 +36,8 @@ export default async function NewLeadPage({
         <p className="text-sm text-gray-500 mt-0.5">Fill in what you observed on site.</p>
       </div>
       <NewLeadForm
-        zoneId={user.zoneId}
-        zoneName={user.zone?.name ?? null}
+        zoneId={firstZone?.id ?? null}
+        zoneName={firstZone?.name ?? null}
         routeTasks={routeTasks}
         initialTaskId={taskId}
         initialLat={lat ? parseFloat(lat) : undefined}

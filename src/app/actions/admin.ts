@@ -80,7 +80,7 @@ export async function inviteInternalUser(
 ): Promise<{ error: string } | { success: true } | null> {
   const email = (formData.get('email') as string)?.trim().toLowerCase()
   const role = formData.get('role') as string
-  const zoneId = (formData.get('zoneId') as string)?.trim() || null
+  const zoneIds = (formData.getAll('zoneIds') as string[]).filter(Boolean)
 
   if (!email) return { error: 'Email is required.' }
   if (!['ADMIN', 'SALES', 'MARKETING', 'DATA_COLLECTOR'].includes(role)) {
@@ -104,12 +104,22 @@ export async function inviteInternalUser(
       email,
       role: role as 'ADMIN' | 'SALES' | 'MARKETING' | 'DATA_COLLECTOR',
       invitedAt: new Date(),
-      zoneId: role === 'DATA_COLLECTOR' ? zoneId : null,
+      zones: role === 'DATA_COLLECTOR' && zoneIds.length > 0
+        ? { connect: zoneIds.map(id => ({ id })) }
+        : undefined,
     },
   })
 
   revalidatePath('/admin/users')
   return { success: true }
+}
+
+export async function updateUserZones(userId: string, zoneIds: string[]) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { zones: { set: zoneIds.map(id => ({ id })) } },
+  })
+  revalidatePath('/admin/users')
 }
 
 export async function resendInvite(email: string) {

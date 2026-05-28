@@ -76,15 +76,22 @@ export function InviteUserButton({ zones }: { zones: Zone[] }) {
               </select>
             </div>
 
-            {selectedRole === 'DATA_COLLECTOR' && (
+            {selectedRole === 'DATA_COLLECTOR' && zones.length > 0 && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">Zone</label>
-                <select name="zoneId" className={selectClass} defaultValue="">
-                  <option value="">No zone assigned</option>
+                <label className="mb-1 block text-sm font-medium text-foreground">Zones</label>
+                <div className="space-y-2 rounded-md border border-input bg-background px-3 py-2">
                   {zones.map(z => (
-                    <option key={z.id} value={z.id}>{z.name}</option>
+                    <label key={z.id} className="flex items-center gap-2 cursor-pointer text-sm text-foreground">
+                      <input type="checkbox" name="zoneIds" value={z.id} className="rounded" />
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: z.color ?? '#6b7280' }}
+                      />
+                      {z.name}
+                    </label>
                   ))}
-                </select>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Leave unchecked to assign no zone.</p>
               </div>
             )}
 

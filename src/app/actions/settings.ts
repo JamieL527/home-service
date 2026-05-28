@@ -28,8 +28,8 @@ export async function updateZone(id: string, formData: FormData) {
 }
 
 export async function deleteZone(id: string) {
-  // Unlink users before deleting
-  await prisma.user.updateMany({ where: { zoneId: id }, data: { zoneId: null } })
+  // Disconnect all users from this zone before deleting
+  await prisma.zone.update({ where: { id }, data: { collectors: { set: [] } } })
   await prisma.zone.delete({ where: { id } })
   revalidatePath('/admin/settings')
 }

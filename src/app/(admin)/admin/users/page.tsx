@@ -103,6 +103,7 @@ async function InternalUsersTab() {
     prisma.user.findMany({
       where: { role: { not: 'CONTRACTOR' as never } },
       orderBy: { createdAt: 'desc' },
+      include: { zones: true },
     }),
     prisma.zone.findMany({ orderBy: { name: 'asc' } }),
   ])
@@ -149,7 +150,7 @@ async function InternalUsersTab() {
                       <span className="text-[11px] text-gray-400">{relativeTime(user.createdAt)}</span>
                     </div>
                   </div>
-                  <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} />
+                  <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} allZones={zones} userZones={user.zones} />
                 </div>
               )
             })}
@@ -164,6 +165,7 @@ async function InternalUsersTab() {
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Name</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500">Zones</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500">Joined</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-500 text-center">Actions</th>
               </tr>
@@ -199,12 +201,27 @@ async function InternalUsersTab() {
                         {roleLabel}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      {user.role === 'DATA_COLLECTOR' && (
+                        <div className="flex flex-wrap gap-1">
+                          {user.zones.length === 0
+                            ? <span className="text-xs text-gray-400">—</span>
+                            : user.zones.map(z => (
+                                <span key={z.id} className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+                                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: z.color ?? '#6b7280' }} />
+                                  {z.name}
+                                </span>
+                              ))
+                          }
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {relativeTime(user.createdAt)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center">
-                        <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} />
+                        <InternalUserMenu userId={user.id} name={name} userStatus={user.userStatus} userRole={user.role} allZones={zones} userZones={user.zones} />
                       </div>
                     </td>
                   </tr>

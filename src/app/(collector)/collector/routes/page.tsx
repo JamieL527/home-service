@@ -8,10 +8,11 @@ import { Route, MapPin } from 'lucide-react'
 export default async function CollectorRoutesPage() {
   const { user } = await requireCollectorUser()
 
-  const tasks = user.zoneId
+  const zoneIds = user.zones.map(z => z.id)
+  const tasks = zoneIds.length > 0
     ? await prisma.routeTask.findMany({
         where: {
-          zoneId: user.zoneId,
+          zoneId: { in: zoneIds },
           OR: [
             { status: 'active', assignedToId: null },
             { assignedToId: user.id },

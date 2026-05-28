@@ -19,9 +19,8 @@ model User {
   firstName           String?
   lastName            String?
   invitedAt           DateTime?
-  zoneId              String?
   contractorCompany   ContractorCompany? @relation(fields: [contractorCompanyId], references: [id])
-  zone                Zone?              @relation(fields: [zoneId], references: [id])
+  zones               Zone[]             @relation("CollectorZones")
   assignedTasks         RouteTask[]        @relation("AssignedTasks")
   dealComments          DealComment[]
   assignedMarketingLeads Lead[]            @relation("AssignedMarketingLeads")
@@ -230,7 +229,7 @@ model Zone {
   color       String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  users       User[]
+  collectors  User[]      @relation("CollectorZones")
   tasks       RouteTask[]
 }
 

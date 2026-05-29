@@ -41,7 +41,7 @@ export function InternalUserMenu({
 
   function checkDirection(e: React.MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setOpenUp(rect.bottom + 220 > window.innerHeight)
+    setOpenUp(rect.bottom + 320 > window.innerHeight)
   }
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function InternalUserMenu({
             {open && (
               <div className={`absolute right-0 z-20 w-52 bg-white rounded-lg border border-gray-200 shadow-lg p-3 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Assign Zones</p>
-                <div className="space-y-1.5 mb-3">
+                <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
                   {allZones.map(z => (
                     <label key={z.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                       <input
@@ -253,7 +253,7 @@ export function InternalUserMenu({
             {view === 'zones' && (
               <>
                 <p className="px-3 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Manage Zones</p>
-                <div className="px-3 space-y-1.5 mb-2">
+                <div className="px-3 space-y-1.5 mb-2 max-h-48 overflow-y-auto">
                   {allZones.map(z => (
                     <label key={z.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                       <input

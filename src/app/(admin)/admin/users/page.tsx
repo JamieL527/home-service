@@ -159,7 +159,7 @@ async function InternalUsersTab() {
 
         {/* Desktop table */}
         {users.length > 0 && (
-          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <div className="hidden sm:block rounded-xl">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
@@ -335,7 +335,7 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
 
         {/* Desktop table */}
         {companies.length > 0 && (
-          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <div className="hidden sm:block rounded-xl">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
@@ -472,7 +472,7 @@ async function InvitationsTab() {
 
         {/* Desktop table */}
         {users.length > 0 && (
-          <div className="hidden sm:block overflow-hidden rounded-xl">
+          <div className="hidden sm:block rounded-xl">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">

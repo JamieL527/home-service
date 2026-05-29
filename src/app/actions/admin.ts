@@ -122,14 +122,16 @@ export async function updateUserZones(userId: string, zoneIds: string[]) {
   revalidatePath('/admin/users')
 }
 
-export async function resendInvite(email: string) {
+export async function resendInvite(email: string): Promise<{ success: boolean; error?: string }> {
   const headersList = await headers()
   const origin = headersList.get('origin') ?? 'http://localhost:3000'
   const adminSupabase = createAdminClient()
-  await adminSupabase.auth.admin.inviteUserByEmail(email, {
+  const { error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${origin}/accept-invite`,
   })
   revalidatePath('/admin/users')
+  if (error) return { success: false, error: error.message }
+  return { success: true }
 }
 
 export async function deleteUser(userId: string) {

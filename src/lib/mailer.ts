@@ -6,10 +6,12 @@ export async function sendMail({
   to,
   subject,
   text,
+  html,
 }: {
   to: string
   subject: string
   text: string
+  html?: string
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE ?? to
   const { data, error } = await resend.emails.send({
@@ -17,6 +19,7 @@ export async function sendMail({
     to: recipient,
     subject,
     text,
+    ...(html ? { html } : {}),
   })
   if (error) {
     console.error('[mailer] Resend error:', error)

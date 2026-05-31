@@ -151,9 +151,13 @@ export default async function ContractorOverviewPage() {
         </div>
       )}
 
-      {offerCount === 0 && activeCount === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
-          No active jobs or offers at the moment.
+      {offerCount === 0 && activeCount === 0 && completedCount === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 p-10 text-center">
+          <p className="text-2xl mb-3">🎉</p>
+          <h2 className="text-base font-bold text-foreground mb-2">Welcome to Construction Market</h2>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Your account is active. Leads will appear here as we sweep your service area — you&apos;ll receive job offers when opportunities match your trade type and location.
+          </p>
         </div>
       )}
     </div>

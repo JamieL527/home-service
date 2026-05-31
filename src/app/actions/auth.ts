@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { prisma } from '@/lib/prisma'
@@ -105,8 +105,16 @@ export async function register(
   const passwordErrors = validatePassword(password)
   if (passwordErrors.length > 0) return { error: passwordErrors[0] }
 
+  const headersList = await headers()
+  const origin = headersList.get('origin') ?? 'http://localhost:3000'
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${origin}/api/auth/callback?next=/register/business-profile`,
+    },
+  })
   if (error) return { error: error.message }
   if (!data.user) return { error: 'Registration failed. Please try again.' }
 

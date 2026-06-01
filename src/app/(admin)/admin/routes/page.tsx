@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import RoutesClient from './routes-client'
 
 export default async function RoutesPage() {
-  const [tasks, zones] = await Promise.all([
+  const [tasks, zones, collectors] = await Promise.all([
     prisma.routeTask.findMany({
       include: {
         zone: { select: { id: true, name: true, color: true } },
@@ -14,9 +14,14 @@ export default async function RoutesPage() {
       orderBy: { createdAt: 'desc' },
     }),
     prisma.zone.findMany({ orderBy: { name: 'asc' } }),
+    prisma.user.findMany({
+      where: { role: 'DATA_COLLECTOR' as never },
+      select: { id: true, firstName: true, lastName: true, email: true, zones: { select: { id: true } } },
+      orderBy: { email: 'asc' },
+    }),
   ])
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''
 
-  return <RoutesClient apiKey={apiKey} initialTasks={tasks} zones={zones} />
+  return <RoutesClient apiKey={apiKey} initialTasks={tasks} zones={zones} collectors={collectors} />
 }

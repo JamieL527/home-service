@@ -829,7 +829,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
     return (
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
         <div className="fixed inset-0 z-0 bg-white flex flex-col">
-          {/* 顶部标题栏 */}
+          {/* Header */}
           <div className="bg-gray-900 text-white z-10 shadow-md shrink-0">
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center">
@@ -865,7 +865,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
             )}
           </div>
 
-          {/* 地图区域 */}
+          {/* Map */}
           <div className="flex-1 relative">
 
             <Map
@@ -955,7 +955,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
               })()}
             </Map>
 
-            {/* GPS定位按钮 */}
+            {/* GPS locate button */}
             <button
               onClick={locateAndPin}
               className="absolute bottom-6 right-6 bg-white p-4 rounded-full shadow-2xl border border-gray-200 text-blue-600 hover:bg-blue-50 z-10 transition-colors"
@@ -968,7 +968,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
             </button>
           </div>
 
-          {/* 底部操作区 */}
+          {/* Bottom actions */}
           <div className="p-6 bg-white border-t border-gray-200 z-10 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
             {/* Route to Start Point */}
             {!navigatingToStart && (
@@ -1068,7 +1068,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
   // ========== Form Entry View ==========
   return (
     <div className="fixed inset-0 z-10 bg-white flex flex-col animate-fadeIn">
-      {/* 顶部导��� */}
+      {/* Top nav */}
       <div className="p-4 border-b flex justify-between items-start bg-white shadow-sm sticky top-0 z-20">
         <button
           onClick={() => setView('map')}
@@ -1087,7 +1087,7 @@ export function NewLeadForm({ zoneId, zoneName, routeTasks = [], initialTaskId, 
         </div>
       </div>
 
-      {/* 表单内容 */}
+      {/* Form content */}
       <form action={action} className="flex-1 overflow-y-auto">
         <input type="hidden" name="contacts" value={JSON.stringify(contacts)} />
         <input type="hidden" name="address" value={address} />

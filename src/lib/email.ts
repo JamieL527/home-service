@@ -30,7 +30,7 @@ export async function sendQuoteEmail({
   pdfBuffer?: Buffer | null
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE || to
-  const from = process.env.RESEND_FROM || 'onboarding@resend.dev'
+  const from = process.env.RESEND_FROM ? `Construction Market <${process.env.RESEND_FROM}>` : 'onboarding@resend.dev'
 
   const fmt = (n: number) =>
     '$' + n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -125,7 +125,7 @@ export async function sendCommentNotificationEmail({
   dealUrl: string
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE || to
-  const from = process.env.RESEND_FROM || 'onboarding@resend.dev'
+  const from = process.env.RESEND_FROM ? `Construction Market <${process.env.RESEND_FROM}>` : 'onboarding@resend.dev'
 
   await resend.emails.send({
     from,

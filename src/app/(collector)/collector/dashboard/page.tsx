@@ -5,7 +5,6 @@ import { requireCollectorUser } from '@/lib/collector'
 import { prisma } from '@/lib/prisma'
 import { Plus, MapPin, AlertTriangle, FileEdit, Route, CheckCircle } from 'lucide-react'
 import { completeRouteTask } from '@/app/actions/route-tasks'
-import { CancelTaskButton } from '@/components/collector/cancel-task-button'
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
@@ -42,22 +41,13 @@ export default async function CollectorDashboardPage() {
     prisma.lead.count({ where: { createdById: user.id, createdAt: { gte: todayStart } } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'DRAFT' as never }, orderBy: { updatedAt: 'desc' } }),
     prisma.lead.findMany({ where: { createdById: user.id, status: 'NEEDS_FIX' as never }, orderBy: { updatedAt: 'desc' } }),
-    user.zones.length > 0
-      ? prisma.routeTask.findMany({
-          where: {
-            zoneId: { in: user.zones.map(z => z.id) },
-            OR: [
-              { status: 'active', assignedToId: null },
-              { assignedToId: user.id },
-            ],
-          },
-          include: {
-            zone: { select: { name: true } },
-            _count: { select: { leads: { where: { createdById: user.id } } } },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-      : Promise.resolve([]),
+    prisma.routeTask.findMany({
+      where: { assignedToId: user.id },
+      include: {
+        _count: { select: { leads: { where: { createdById: user.id } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
 
   const draftCount = draftLeads.length
@@ -172,18 +162,15 @@ export default async function CollectorDashboardPage() {
           </div>
           <div className="space-y-2">
             {myRoutes.map((task) => {
-              const isMyTask = task.assignedToId === user.id
               const leadCount = task._count.leads
-              const isAvailable = task.status === 'active' && !task.assignedToId
-              const isAssigned = task.status === 'assigned' && isMyTask
-              const isInProgress = task.status === 'in_progress' && isMyTask
-              const isDone = task.status === 'completed' && isMyTask
+              const isAssigned = task.status === 'assigned'
+              const isInProgress = task.status === 'in_progress'
+              const isDone = task.status === 'completed'
 
               return (
                 <div
                   key={task.id}
                   className={`rounded-xl px-4 py-3 border ${
-                    isAvailable  ? 'bg-white border-purple-200' :
                     isAssigned   ? 'bg-purple-50 border-purple-300' :
                     isInProgress ? 'bg-blue-50 border-blue-300' :
                     isDone       ? 'bg-green-50 border-green-200 opacity-70' :
@@ -194,12 +181,10 @@ export default async function CollectorDashboardPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <p className="text-sm font-bold text-gray-900 truncate">{task.name}</p>
-                        {isAvailable  && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Available</span>}
-                        {isAssigned   && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Accepted ✓</span>}
+                        {isAssigned   && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Assigned</span>}
                         {isInProgress && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">In Progress</span>}
                         {isDone       && <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">Completed ✓</span>}
                       </div>
-                      <p className="text-xs text-gray-500">Zone: {task.zone.name}</p>
                       {(isAssigned || isInProgress || isDone) && leadCount > 0 && (
                         <p className="text-xs font-semibold text-blue-600 mt-0.5">
                           {leadCount} lead{leadCount !== 1 ? 's' : ''} submitted
@@ -208,8 +193,8 @@ export default async function CollectorDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                      {/* View Map — always visible */}
-                      {(isAvailable || isAssigned || isInProgress) && (
+                      {/* View Map */}
+                      {(isAssigned || isInProgress) && (
                         <Link
                           href={`/collector/routes/${task.id}`}
                           className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
@@ -217,11 +202,6 @@ export default async function CollectorDashboardPage() {
                           <MapPin size={11} />
                           View Map
                         </Link>
-                      )}
-
-                      {/* Claimed + 0 leads: Cancel */}
-                      {isAssigned && leadCount === 0 && (
-                        <CancelTaskButton taskId={task.id} size="sm" />
                       )}
 
                       {/* In Progress: Mark Done */}

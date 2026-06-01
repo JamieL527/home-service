@@ -2,286 +2,261 @@
 
 # Home Service Platform
 
-## 项目概述
-家装/维修类服务市场 + 工程执行管理系统
-核心目标：将"需求线索 → 评估 → 转化工程 → 分配施工方 → 执行 → 收款"全流程数字化闭环管理
+## Project Overview
+Home renovation / repair service marketplace + project execution management system.
+Core goal: digitize the full lifecycle — "lead capture → evaluation → project conversion → contractor assignment → execution → payment collection."
 
-## 技术栈
-- Next.js 16.2.4（App Router，React Server Components + Server Actions）
+## Tech Stack
+- Next.js 16.2.4 (App Router, React Server Components + Server Actions)
 - React 19.2.4
 - TypeScript 5
-- Supabase（@supabase/ssr + @supabase/supabase-js）— 用户认证 + PostgreSQL
-- Prisma 6 — ORM，管理业务数据
+- Supabase (@supabase/ssr + @supabase/supabase-js) — auth + PostgreSQL
+- Prisma 6 — ORM for business data
 - Tailwind CSS 4
-- shadcn/ui（基于 Radix/Base UI）
+- shadcn/ui (based on Radix/Base UI)
 - @base-ui/react
 - lucide-react
 - class-variance-authority + clsx + tailwind-merge
 
-## 架构特点
-- 双客户端模式：Supabase server client（SSR）+ browser client（客户端组件）
-- httpOnly cookie 存储 user-role，用于中间件鉴权
-- src/proxy.ts 实现路由保护
+## Architecture
+- Dual client mode: Supabase server client (SSR) + browser client (client components)
+- httpOnly cookie stores user-role for middleware auth
+- src/proxy.ts handles route protection
 
-## 用户角色（5个）
-- CONTRACTOR：施工公司用户，自助注册 → 填写资料 → 等待审批 → 接单
-- ADMIN：平台管理员，审批Contractor，管理用户，邀请内部用户
-- SALES：销售，管理CRM和Lead（由Admin邀请）
-- MARKETING：市场，Lead流转（由Admin邀请）
-- DATA_COLLECTOR：外勤，采集Lead（由Admin邀请）
+## User Roles (5)
+- CONTRACTOR: construction company user, self-registers → fills profile → awaits approval → receives jobs
+- ADMIN: platform admin, approves contractors, manages users, invites internal users
+- SALES: manages CRM and leads (invited by Admin)
+- MARKETING: lead pipeline management (invited by Admin)
+- DATA_COLLECTOR: field collector, captures leads (invited by Admin)
 
-## 数据模型
+## Data Model
 User → ContractorCompany → Job ← Lead → Deal
-主要模型：User / ContractorCompany / Lead / LeadContact / Job / JobOffer / Deal / Zone
+Main models: User / ContractorCompany / Lead / LeadContact / Job / JobOffer / Deal / Zone
 
-注意：已删除独立的 Contractor 模型，施工方统一用 ContractorCompany 表示。
+Note: standalone Contractor model removed; contractors are represented by ContractorCompany.
 
-Zone 字段：id, name, description, color, createdAt, updatedAt
-  默认数据：North York Hub (#3b82f6), Downtown (#8b5cf6)
+Zone fields: id, name, description, color, createdAt, updatedAt
+  Default data: North York Hub (#3b82f6), Downtown (#8b5cf6)
 
-User 新增字段：zoneId（→Zone，仅 DATA_COLLECTOR 使用）
+User: zones (→Zone[], many-to-many via _CollectorZones, DATA_COLLECTOR only)
 
-ContractorCompany 字段：name, status, businessNumber, address, website, tradeType,
+ContractorCompany fields: name, status, businessNumber, address, website, tradeType,
   wsibNumber, insuranceNumber, contactName, contactTitle, contactEmail, contactPhone,
   termsAccepted, termsAcceptedAt, adminNote
 
-Job 字段：leadId, phase, status(JobStatus), scope, priceType, priceFixed, priceMin,
+Job fields: leadId, phase, status(JobStatus), scope, priceType, priceFixed, priceMin,
   priceMax, timeline, serviceType, contractorType, companyId(→ContractorCompany), progressNote
 
-JobOffer 字段：jobId, companyId(→ContractorCompany), status(pending/accepted/rejected), sentAt, respondedAt
+JobOffer fields: jobId, companyId(→ContractorCompany), status(pending/accepted/rejected), sentAt, respondedAt
 
-Lead 新增字段：reviewComment, submittedAt, isUrgent, scheduledInjectAt,
+Lead additional fields: reviewComment, submittedAt, isUrgent, scheduledInjectAt,
   marketingTag, retryCount(@default(0)), nextFollowUpDate, marketingNote, sentimentTag,
   zoneId, zoneName
 
-## ContractorCompany 状态流转
-UNVERIFIED_PROFILE → (填写资料提交) → PENDING_APPROVAL → (Admin审批) → ACTIVE
-                                                         → REJECTED
-                                                         → ACTION_REQUIRED → (修改资料) → PENDING_APPROVAL
+## ContractorCompany Status Flow
+UNVERIFIED_PROFILE → (submit profile) → PENDING_APPROVAL → (Admin approves) → ACTIVE
+                                                           → REJECTED
+                                                           → ACTION_REQUIRED → (update profile) → PENDING_APPROVAL
 
-## JobStatus 枚举
+## JobStatus Enum
 PENDING → (Fill Details) → READY → (Send Offer) → OFFER_SENT → (Accept) → ASSIGNED
 → (Start) → IN_PROGRESS → (Complete) → COMPLETED → (Admin verify) → VERIFIED
-CANCELLED（随时可取消）
+CANCELLED (available at any time)
 
-## LeadStatus 状态流转
-SUBMITTED → (评估) → NEW_LEAD / BACKED / URGENT / PARKED / SCHEDULED / NEEDS_FIX / RESUBMITTED
+## LeadStatus Flow
+SUBMITTED → (evaluate) → NEW_LEAD / BACKED / URGENT / PARKED / SCHEDULED / NEEDS_FIX / RESUBMITTED
 → (Send to Marketing) → MARKETING_INBOX → (Accept) → TO_CONTACT → CONTACTING → NO_RESPONSE / CONTACT_ESTABLISHED
 → (Qualify) → QUALIFIED → JOB_ACTIVE
 
-NEEDS_FIX 流转：Admin 标记 → 采集员修改 → 采集员 Resubmit → RESUBMITTED → Admin 重新评估
-注意：injectLead 现在改为状态→MARKETING_INBOX，不再创建 Job。Job 创建移至 Sales Deal Won 后触发。
+NEEDS_FIX flow: Admin flags → collector edits → collector resubmits → RESUBMITTED → Admin re-evaluates
+Note: injectLead now sets status→MARKETING_INBOX instead of creating a Job. Job creation moved to after Sales Deal Won.
 
-## 路由结构
-- /login：统一登录页
-- /register：Contractor 注册（Step 1：账号创建）
-- /register/business-profile：填写 Business Profile（Step 2，含 tradeType 选择）
-- /register/pending：等待审批页面
-- /forgot-password：忘记密码
-- /reset-password：重置密码
-- /accept-invite：接受邀请（内部用户）
-- /set-password：设置密码（接受邀请后）
-- /admin/*：平台管理后台
-- /contractor/*：施工方工作台（只有 ACTIVE 状态才能进入）
-- /collector/*：外勤采集
-- /marketing/*：市场工作台（MARKETING + ADMIN 可访问）
+## Route Structure
+- /login: unified login page
+- /register: Contractor registration (Step 1: account creation)
+- /register/business-profile: fill Business Profile (Step 2, includes tradeType selection)
+- /register/pending: awaiting approval page
+- /register/verify-email: check your email page (after registration)
+- /forgot-password: forgot password
+- /reset-password: reset password
+- /accept-invite: accept invite (internal users)
+- /set-password: set password (after accepting invite)
+- /admin/*: platform admin panel
+- /contractor/*: contractor workspace (ACTIVE status required)
+- /collector/*: field collection
+- /marketing/*: marketing workspace (MARKETING + ADMIN accessible)
 
-## Contractor 注册流程
-1. /register → 填写 First Name(可选), Last Name(可选), Email, Password
-   → 创建 Supabase 用户 + Prisma User(role=CONTRACTOR) + ContractorCompany(status=UNVERIFIED_PROFILE)
-   → 设置 user-role cookie → 跳转 /register/business-profile
-2. /register/business-profile → 填写 Business Info（含 Trade/Service Type 下拉必填）
-   + Person in Charge + Insurance & Compliance + 勾选 T&C
-   → 更新 ContractorCompany (status=PENDING_APPROVAL) → 跳转 /register/pending
-3. /register/pending → 显示审核中提示，可退出登录
+## Contractor Registration Flow
+1. /register → enter First Name (optional), Last Name (optional), Email, Password
+   → creates Supabase user + Prisma User(role=CONTRACTOR) + ContractorCompany(status=UNVERIFIED_PROFILE)
+   → sets user-role cookie → redirects to /register/verify-email
+   → verification email sent via Supabase with emailRedirectTo → /api/auth/callback?next=/register/business-profile
+2. /register/business-profile → fill Business Info (Trade/Service Type dropdown required)
+   + Person in Charge + Insurance & Compliance + T&C checkbox
+   → updates ContractorCompany (status=PENDING_APPROVAL) → redirects to /register/pending
+3. /register/pending → shows pending review message, can sign out
 
-## Contractor 登录后路由（根据公司状态）
+## Contractor Post-Login Routing (by company status)
 - UNVERIFIED_PROFILE → /register/business-profile
 - PENDING_APPROVAL → /register/pending
 - ACTION_REQUIRED → /register/business-profile
-- REJECTED → 登录页错误提示
+- REJECTED → login page with error
 - ACTIVE → /contractor/overview
 
-## 内部用户邀请流程
-Admin 在 /admin/users 页面，通过 Invite User 弹窗填写邮箱和角色（SALES/MARKETING/DATA_COLLECTOR）
-→ 角色为 DATA_COLLECTOR 时额外显示 Zone 下拉（可选），选择后保存到 User.zoneId
-→ Supabase inviteUserByEmail → 用户点击邮件链接 → /accept-invite → /set-password → 跳转对应 Dashboard
+## Internal User Invite Flow
+Admin at /admin/users, via Invite User dialog enters email and role (SALES/MARKETING/DATA_COLLECTOR)
+→ DATA_COLLECTOR role shows Zone multi-select checkboxes, saved to User.zones (many-to-many)
+→ Supabase inviteUserByEmail → user clicks email link → /accept-invite → /set-password → respective dashboard
 
-## Admin 审批功能（/admin/contractors）
-显示 PENDING_APPROVAL + ACTION_REQUIRED 状态的 Contractor，展示完整 Business Profile（含 tradeType）：
-- Approve → ACTIVE
-- Request More Info → ACTION_REQUIRED（弹窗填写需要补充的内容）
-- Reject → REJECTED（弹窗填写拒绝原因，存为 adminNote）
+## Admin Approval (/admin/contractors)
+Shows PENDING_APPROVAL + ACTION_REQUIRED contractors with full Business Profile (incl. tradeType):
+- Approve → ACTIVE (sends branded approval email via Resend)
+- Request More Info → ACTION_REQUIRED (dialog for note, sends branded needs-more-info email via Resend)
+- Reject → REJECTED (dialog for reason, stored as adminNote, sends branded rejection email via Resend)
 
-## 已完成模块
+## Completed Modules
 
-### 基础模块
-- 数据库 Schema
-- Contractor 注册（两步流程）/ 登录 / 状态路由
-- 内部用户邀请（Admin → SALES/MARKETING/DATA_COLLECTOR）
-- 忘记密码 / 重置密码 / 接受邀请 / 设置密码
-- Admin Dashboard（Contractor审批完整资料展示、三按钮操作）
-- Admin 用户管理（邀请内部用户）
-- 统一密码规则（8位+大小写+数字+特殊字符）
+### Core
+- Database Schema
+- Contractor registration (two-step flow) / login / status routing
+- Internal user invite (Admin → SALES/MARKETING/DATA_COLLECTOR)
+- Forgot password / reset password / accept invite / set password
+- Admin Dashboard (contractor approval with full profile, three-button actions)
+- Admin user management (invite internal users, manage zones per collector)
+- Unified password rules (8+ chars, upper/lower/number/special)
 
-### Data Collector 模块（/collector/*）
-- /collector/dashboard：今日统计（采集数/Draft/Needs Fix）、Draft 快速续填卡片、Needs Fix 红色卡片
-- /collector/leads：Lead 列表，⚠️ 标记 NEEDS_FIX
-- /collector/leads/new：新建 Lead（Google Maps 选点 + 反向地理编码 + 语音转文字）
-- /collector/leads/[id]：Lead 详情（Location/Photos/Demand+Contacts/Supply/Field Notes 分区）
-  - 数据完整性提示条（缺 businessName/contacts/notes 时橙色警告）
-  - NEEDS_FIX banner：显示 reviewComment，含 Edit & Resubmit 按钮
-  - NotesForm：内联 Field Notes 编辑（不跳转页面）
-- /collector/leads/[id]/edit：编辑页（Demand Side / Supply / Field Notes / Contacts 增删改）
-- /collector/leads/new：表单顶部显示 "Your Zone: X"（只读），提交时自动写入 Lead.zoneId + zoneName
-- /collector/dashboard：Header 显示当前 Zone badge，Recent Leads 表格含 Zone 列
-- /collector/leads：Lead 列表含 Zone 列
-- Server actions: resubmitLead（状态→RESUBMITTED，保留reviewComment）, updateLeadNotes, updateLeadDetails
-- createLead action 支持 zoneId + zoneName 字段
+### Data Collector Module (/collector/*)
+- /collector/dashboard: today's stats (collected/Draft/Needs Fix), draft quick-fill cards, Needs Fix red cards
+- /collector/leads: lead list with ⚠️ NEEDS_FIX markers
+- /collector/leads/new: new lead form (Google Maps pin + reverse geocoding + voice-to-text)
+  - Real-time blue dot GPS tracking with direction arrow
+  - GPS trail line showing walked path (breadcrumb trail)
+  - Route task polygon overlay showing assigned area
+- /collector/leads/[id]: lead detail (Location/Photos/Demand+Contacts/Supply/Field Notes sections)
+  - Data completeness warning bar (orange warning when businessName/contacts/notes missing)
+  - NEEDS_FIX banner: shows reviewComment, includes Edit & Resubmit buttons
+  - NotesForm: inline Field Notes editing
+- /collector/leads/[id]/edit: edit page (Demand Side / Supply / Field Notes / Contacts CRUD)
+- /collector/routes: route task list, filtered by assignedToId = user.id, grouped by status
+- /collector/routes/[id]: map detail page, polygon color matches admin setting
+  - Buttons: Start Collecting (assigned/in_progress) / Done (in_progress)
+  - No accept step — tasks are directly assigned by admin
+- Server actions: resubmitLead, updateLeadNotes, updateLeadDetails, completeRouteTask, releaseRouteTask
 
-### Admin Evaluation 模块（/admin/evaluation）
-- 统计卡片（Backed/New/Urgent/Total）、Phase 彩色过滤 Tab
-- Action Queue（URGENT 红色专区）
-- 双列布局：Backed Leads（左）/ New Leads（右）
-- New Leads 列卡片状态区分：
-  - NEEDS_FIX：橙色背景 + "⚠ Needs Fix" badge + reviewComment 展示，只显示 Details + NeedsFixButton
-  - RESUBMITTED：蓝色背景 + "✓ Resubmitted" badge + 原 reviewComment 展示（"Previously flagged:"），显示完整操作按钮
-  - 普通：白色卡片 + 完整操作按钮 + NeedsFixButton
-- NeedsFixButton：弹窗填写意见 → markLeadNeedsFix（status→NEEDS_FIX，保存reviewComment）
-- Inject 按钮现改为 "Send to Marketing"，触发 injectLead → 状态→MARKETING_INBOX（不创建 Job）
+### Admin Evaluation Module (/admin/evaluation)
+- Stats cards (Backed/New/Urgent/Total), Phase colored filter tabs
+- Action Queue (URGENT red section)
+- Two-column layout: Backed Leads (left) / New Leads (right)
+- New Leads card states: NEEDS_FIX (orange), RESUBMITTED (blue), normal (white)
+- NeedsFixButton: dialog for comment → markLeadNeedsFix (status→NEEDS_FIX)
+- "Send to Marketing" button → injectLead → status→MARKETING_INBOX (no Job created)
 - Server actions: backLead, markLeadUrgent, injectLead, parkLead, delayLead, markLeadNeedsFix
 
-### Admin Parking 模块（/admin/parking）
-- 注入队列（READY TODAY + Scheduled 双列）+ 横向 Phase 看板
-- InjectionQueueCard 组件（内联操作按钮、日期选择弹窗、Phase 移动弹窗）
-- scheduledInjectAt + isUrgent 字段
+### Admin Parking Module (/admin/parking)
+- Injection queue (READY TODAY + Scheduled two-column) + horizontal Phase kanban
+- InjectionQueueCard (inline action buttons, date picker dialog, Phase move dialog)
+- scheduledInjectAt + isUrgent fields
 
-### Admin Lead Detail（/admin/leads/[id]）
-- 6个 Section：Location / City Data / Demand Side（含 Contacts）/ Supply Side / Photos / Field Notes
-- 所有 Section 均有空状态提示
-- 有操作权限时显示 Actions 面板（Back/Urgent/Inject 等）
-- Linked Jobs 列表可点击跳转
-- SALES 角色可访问 /admin/evaluation, /admin/parking, /admin/leads/*
+### Admin Lead Detail (/admin/leads/[id])
+- 6 sections: Location / City Data / Demand Side (with Contacts) / Supply Side / Photos / Field Notes
+- All sections have empty states
+- Actions panel shown when user has permission (Back/Urgent/Inject etc.)
+- Linked Jobs list with clickable links
+- SALES role can access /admin/evaluation, /admin/parking, /admin/leads/*
 
-### Admin Job Board（/admin/jobs）
-- Job 列表 + Phase 筛选 + 状态统计卡片
-- 列表按钮：PENDING→"Fill Details"，READY→"Find Contractor"，其他→"View Offer"/"View Details"
-- "Lead Detail" 按钮：所有状态均可跳转到对应 /admin/leads/[leadId]
-- /admin/jobs/[id]：Fill Details 表单（serviceType, contractorType, scope, pricing, timeline）
-  - 右上角 "View Lead Detail →" 链接
-  - 保存后状态→READY
-- /admin/jobs/[id]/match：Contractor 匹配页
-  - 查询 ContractorCompany（status=ACTIVE），按地址(+2分)+tradeType(+1分)评分排序
-  - 显示 tradeType、地址、联系人信息
-  - 已发送 pending offer → 灰色 "Offer Sent"（不可重发）
-  - 已拒绝 → 红色 "Declined" badge + 半透明卡片（可重新发送）
+### Admin Job Board (/admin/jobs)
+- Job list + Phase filter + status stats cards
+- Buttons: PENDING→"Fill Details", READY→"Find Contractor", others→"View Offer"/"View Details"
+- "Lead Detail" button: all statuses link to /admin/leads/[leadId]
+- /admin/jobs/[id]: Fill Details form (serviceType, contractorType, scope, pricing, timeline)
+- /admin/jobs/[id]/match: Contractor matching page
+  - Queries ACTIVE ContractorCompany, scored by address(+2) + tradeType(+1)
   - Send Offer → JobOffer(status=pending) + Job(status=OFFER_SENT)
 - Server actions: updateJobDetails, sendJobOffer, cancelJob
 
-### Contractor Jobs 模块（/contractor/jobs）
-- 顶部统计卡片：New Offers（蓝）/ Active Jobs（绿）/ Completed（灰）
-- Tab 筛选：New Offers | Active | Completed
-- New Offers 卡片：只显示城市/区域（隐藏完整地址）、Phase、Service Type、Scope、Price、Timeline
+### Contractor Jobs Module (/contractor/jobs)
+- Stats cards: New Offers (blue) / Active Jobs (green) / Completed (gray)
+- Tab filter: New Offers | Active | Completed
+- New Offers cards: city/area only (full address hidden), Phase, Service Type, Scope, Price, Timeline
   - Accept → JobOffer(accepted) + Job(ASSIGNED)
-  - Decline → JobOffer(rejected) + Job(READY)，Job 重回匹配池
-- Active/Completed 卡片：显示完整地址，点击进入详情
-- /contractor/jobs/[id]：Job 详情
-  - 完整 Job 信息（地址/Phase/serviceType/scope/price/timeline）
-  - 状态更新：Start Job（ASSIGNED→IN_PROGRESS）/ Mark as Completed（IN_PROGRESS→COMPLETED）
-  - Progress Notes：内联编辑，保存到 progressNote 字段
-  - Progress Photos：占位（Coming Soon）
-  - COMPLETED 时显示"Awaiting admin verification"提示
-- Server actions（contractor-jobs.ts）: acceptOffer, rejectOffer, updateJobStatus, updateJobNote
+  - Decline → JobOffer(rejected) + Job(READY)
+- /contractor/jobs/[id]: Job detail with status updates, Progress Notes inline editing
+- Server actions (contractor-jobs.ts): acceptOffer, rejectOffer, updateJobStatus, updateJobNote
 
-### Admin Job Verification（/admin/jobs/[id]）
-- 状态为 COMPLETED 时底部显示 "Progress Notes from Contractor" + 绿色 "Ready to Verify?" 区块
-- Verify Job 按钮 → verifyJob action → 状态→VERIFIED
-- 状态为 VERIFIED 时显示已完成提示
+### Admin Job Verification (/admin/jobs/[id])
+- COMPLETED status shows "Progress Notes from Contractor" + green "Ready to Verify?" block
+- Verify Job button → verifyJob action → status→VERIFIED
 
-### Admin Permits Map（/admin/permits）
-- 路由：/admin/permits，侧边栏入口在 User Management 上方（Map 图标）
-- 数据来源：permits 表，通过 Supabase service role key 绕过 RLS 查询
-- 布局：桌面端左右双栏；移动端顶部 List / Map tab 切换
-- 左侧面板：
-  - 搜索框：支持 permit #、地址、builder name、description 模糊搜索
-  - Status 下拉筛选、Permit Type 下拉筛选、Year From 下拉（2010 至今）
-  - 蓝色全宽 Search 按钮，结果数量显示
-  - 每页 50 条，分页导航
-  - Status badge 颜色：哈希法自动为每种状态分配不同颜色（15色调色板）
-- 右侧地图（@vis.gl/react-google-maps）：
-  - 按地址分组：同一地址多个 permits 只渲染一个 marker，避免重叠
-  - Marker：lucide MapPin 图标，红色填充，选中时放大 1.25x
-  - 多 permit 地址：右上角叠加蓝色数字角标显示总数
-  - 点击 marker → InfoWindow 展示最新一条 permit 完整信息 + 其余 permits 列表（permit # / status badge / 日期）
-  - 点击列表中的 permit → 地图 pan 到对应位置并打开 InfoWindow；移动端自动切换到 Map tab
-- Geocoding：client-side，每页最多 50 个地址并发请求 Google Geocoding API，useRef 缓存 session 内已解析地址
-- API：POST /api/admin/permits（Supabase service role，支持 q/status/permitType/yearFrom/page/perPage 参数）
-- Server component (page.tsx)：Prisma 预取 distinct statuses、distinct permit_types、total count 作为 props 传入 client
+### Admin Permits Map (/admin/permits)
+- Route: /admin/permits, sidebar entry above User Management (Map icon)
+- Data source: permits table via Supabase service role key bypassing RLS
+- Layout: desktop two-column; mobile top List/Map tab switch
+- Left panel: search, Status/Type/Year filters, pagination (50 per page)
+- Right map (@vis.gl/react-google-maps): grouped markers, InfoWindow with permit details
+- Heatmap: toggle button, viewport-filtered top 50 cells, rank-based color gradient (red→orange→yellow→blue)
+  - Uses get_permit_heatmap Supabase RPC function (deduplicates by street_num+street_name+street_type)
+- API: POST /api/admin/permits + POST /api/admin/permits/heatmap
 
-### Admin Settings 模块（/admin/settings）
-- Tab: General（占位）/ Zones
-- Zones Tab：Zone 列表（名称/描述/颜色色块）、Add Zone 按钮、Edit/Delete 操作
-- 新增/编辑弹窗：Zone Name（必填）、Description（选填）、Color（预设10色选择器）
-- 删除确认弹窗：删除前自动解绑关联用户的 zoneId
-- Server actions（settings.ts）: createZone, updateZone, deleteZone
-- 侧边栏新增 Settings 入口（Settings 图标）
+### Admin Settings Module (/admin/settings)
+- Tabs: General (placeholder) / Zones
+- Zones Tab: zone list (name/description/color swatch), Add Zone button, Edit/Delete
+- Add/Edit dialog: Zone Name (required), Description (optional), Color (10-color preset picker)
+- Delete confirmation: auto-disconnects associated users' zones before deleting
+- Server actions (settings.ts): createZone, updateZone, deleteZone
 
-### Marketing 模块（/marketing/*）
-- 布局：深蓝紫侧边栏（gradient）+ 白色顶栏
-- 导航：Inbox / Activity（占位）
-- /marketing/inbox：Marketing Inbox 主页面
-  - 顶部 3 个 Tab：Inbox（蓝）/ Re-Activated（绿）/ Returned Error（红）
-  - Inbox Tab：显示 MARKETING_INBOX 状态的 Lead 列表，Accept→TO_CONTACT / Return→INJECTED
-  - 4 列看板：To Contact / Contacting / No Response / Contact Shared
-  - 点击卡片弹出右侧详情面板（宽度 w-72）
-  - 详情面板：Contact 信息 / Sentiment Tag（Hot Lead/Follow-up/Budget Approved）/ 跟进日期 / 备注编辑 / 操作按钮
-  - 卡片显示：tag badge / 地址 / 联系人 / SLA倒计时（TO_CONTACT）/ Retry次数（NO_RESPONSE）/ follow-up日期 / sentimentTag
-  - 操作：startContacting / markNoResponse / markContactEstablished / retryContact / parkLeadMarketing / qualifyLead
-  - qualifyLead：Lead→QUALIFIED + 创建 Deal 记录
-- Server actions（marketing.ts）: acceptInboxLead, rejectInboxLead, startContacting,
+### Marketing Module (/marketing/*)
+- Layout: dark blue-purple sidebar (gradient) + white top bar
+- Navigation: Inbox / Activity (placeholder)
+- /marketing/inbox: Marketing Inbox
+  - 3 tabs: Inbox (blue) / Re-Activated (green) / Returned Error (red)
+  - 4-column kanban: To Contact / Contacting / No Response / Contact Shared
+  - Right detail panel (w-72): Contact info / Sentiment Tag / follow-up date / notes / action buttons
+- Server actions (marketing.ts): acceptInboxLead, rejectInboxLead, startContacting,
   markNoResponse, markContactEstablished, retryContact, parkLeadMarketing, setFollowUpDate,
   qualifyLead, updateMarketingNote, updateSentimentTag
 
-### Route Tasks 模块
-- 数据模型：RouteTask（id, name, polygon:Json, color, zoneId→Zone, createdById, assignedToId→User, status, createdAt, updatedAt）
-- RouteTask.status 枚举：active（未认领）/ assigned（已认领）/ in_progress（采集中）/ completed（已完成）
-- Lead 新增字段：routeTaskId→RouteTask（可选）
-- User 新增关联：assignedTasks RouteTask[]
+### Route Tasks Module
+- Data model: RouteTask (id, name, polygon:Json, color, zoneId→Zone, createdById, assignedToId→User, status, createdAt, updatedAt)
+- RouteTask.status: assigned / in_progress / completed
+- Lead additional field: routeTaskId→RouteTask (optional)
+- Tasks are directly assigned by admin to a specific collector (no accept step)
 
-#### Admin（/admin/routes）
-- 布局：白色左侧面板（任务列表）+ 右侧 Google Maps 全屏地图；手机端 Tasks/Map Tab 切换
-- 标题栏与 Evaluation/Parking 风格一致（text-2xl font-black）
-- 画区域：点击 "Draw New Zone" → 手动点击地图逐顶点绘制多边形（非 DrawingManager）
-  - 手机端：Draw 按钮作为地图悬浮层（左上角）
-  - 绘制中支持 Undo / Cancel / Close Polygon
-- 保存面板（画完后地图底部弹出）：Task Name + 颜色选择器（10色）+ Zone 下拉 + Discard/Publish
-- 任务列表：Unassigned / Claimed / In Progress / Completed 四组分类
-  - Zone 下拉筛选（多 Zone 时显示）
-  - 点击卡片 → 高亮地图上对应多边形并 pan
-  - 地图上直接点击多边形也可选中对应任务（非绘制模式）
-  - 所有区域始终以淡色显示，选中时高亮
-- TaskCard 操作：改名（内联输入）/ 强制收回（Claimed/In Progress 时可用）/ 删除
-- Server actions（route-tasks.ts）: createRouteTask, deleteRouteTask, updateRouteTaskStatus, renameRouteTask, adminReleaseRouteTask
+#### Admin (/admin/routes)
+- Layout: white left panel (task list) + right Google Maps fullscreen; mobile Tasks/Map tab switch
+- Drawing: click "Draw New Zone" → manual vertex-by-vertex polygon drawing
+  - Supports Undo (remove last vertex) / Cancel / close by clicking first vertex
+  - Mouse-follow guide line while drawing
+- Save panel (appears after polygon closed): Task Name + color picker (10 colors) + Zone dropdown + Collector dropdown (filtered by selected zone) + Discard/Edit/Publish
+- Task list: Assigned / In Progress / Completed groups
+  - Zone dropdown filter
+  - Click card → highlights polygon on map and pans
+  - TaskCard actions: rename (inline) / reassign (inline collector picker, filtered by zone) / delete
+- Server actions (route-tasks.ts): createRouteTask, deleteRouteTask, updateRouteTaskStatus, renameRouteTask, adminReassignRouteTask
 
-#### Collector（/collector/routes）
-- /collector/routes：列表页，显示所属 Zone 的任务，按 4 种状态分组展示
-- /collector/routes/[id]：地图详情页，多边形颜色与 Admin 设定一致
-  - 状态按钮：Accept Task（available）/ Start Collecting + Cancel Task（assigned，0 leads）/ Start Collecting + Done（in_progress）
-  - Cancel Task：client 组件，点击弹确认框，调用 releaseRouteTask（仅限未提交 lead 时可取消）
-  - Done：调用 completeRouteTask
-- /collector/leads/new：地图顶部显示所属任务区域多边形（TaskPolygonOverlay，clickable:false 不拦截点击）
-  - 任务 chip 显示在地图正上方，点击 chip 切换区域高亮；提交 lead 时自动写入 routeTaskId
-  - 提交第一条 lead 时任务状态自动从 assigned → in_progress
-- /collector/dashboard：My Routes 区块，4 状态卡片（Available/Claimed/In Progress/Completed）
-- 权限：只能查看自己 Zone 的任务（user.zoneId 过滤）
-- Server actions: acceptRouteTask（事务防竞争）, releaseRouteTask, completeRouteTask
+#### Collector (/collector/routes)
+- /collector/routes: list page, shows tasks where assignedToId = user.id, grouped by status
+- /collector/routes/[id]: map detail page, polygon color matches admin setting
+  - Buttons: Start Collecting (assigned/in_progress) / Done (in_progress)
+- /collector/leads/new: map shows assigned task polygon overlay (TaskPolygonOverlay, clickable:false)
+  - Task chip above map; submitting lead auto-writes routeTaskId
+  - First lead submission auto-transitions task assigned → in_progress
+- /collector/dashboard: My Routes section with status cards (Assigned/In Progress/Completed)
+- Server actions: completeRouteTask
 
-## 开发规范
-- 所有 UI 文字使用英文
-- 使用 shadcn/ui 组件（contractor 端）/ 原生 Tailwind（admin/collector 端）
-- 权限严格按照用户 Role 控制
-- 数据隔离：Contractor 只能看到本公司（companyId）数据
-- 新功能开发完成后及时 git commit
-- Prisma enum 在旧生成客户端中需要 `as never` 或 `as string` 转型，待 prisma db push 后自动修复
-- Job/JobOffer 均通过 companyId 关联 ContractorCompany（不是 Contractor）
-- resubmitLead 不清除 reviewComment，保留供 admin 对照核查
+### Email System
+- Approval/Rejection/Needs-More-Info emails sent via Resend using branded HTML templates
+- Comment notifications on estimation workspace sent via Resend
+- Quote emails sent via Resend with PDF attachment support
+- Supabase handles: verification email, invite email, password reset email (configured in Supabase Dashboard → Authentication → Email Templates)
+- RESEND_TO_OVERRIDE env var overrides recipient for local testing
+
+## Development Guidelines
+- All UI text in English
+- Use shadcn/ui components (contractor side) / native Tailwind (admin/collector side)
+- Role-based access control strictly enforced
+- Data isolation: Contractor can only see own company data (companyId)
+- Commit after completing new features
+- Prisma enums in older generated client may need `as never` or `as string` cast until prisma db push
+- Job/JobOffer linked to ContractorCompany via companyId (not Contractor)
+- resubmitLead does NOT clear reviewComment — preserved for admin cross-reference

@@ -11,15 +11,16 @@ import {
 import { MapPin, Trash2, CheckCircle, Route, X, PenLine, Map, Pencil, RotateCcw, Undo2 } from 'lucide-react'
 import {
   createRouteTask, deleteRouteTask, updateRouteTaskStatus,
-  renameRouteTask, adminReleaseRouteTask,
+  renameRouteTask, adminReassignRouteTask,
 } from '@/app/actions/route-tasks'
 
 type LatLng = { lat: number; lng: number }
-type Zone   = { id: string; name: string; color: string | null }
+type Zone = { id: string; name: string; color: string | null }
+type Collector = { id: string; firstName: string | null; lastName: string | null; email: string; zones: { id: string }[] }
 type RouteTask = {
   id: string; name: string; polygon: unknown; color: string
   zoneId: string; status: string; createdAt: Date
-  zone: { id: string; name: string; color: string | null }
+  zone: Zone
   assignedTo: { id: string; firstName: string | null; lastName: string | null; email: string } | null
   _count: { leads: number }
 }
@@ -188,9 +189,9 @@ function MapController({ target }: { target: { pos: LatLng; t: number } | null }
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-interface Props { apiKey: string; initialTasks: RouteTask[]; zones: Zone[] }
+interface Props { apiKey: string; initialTasks: RouteTask[]; zones: Zone[]; collectors: Collector[] }
 
-export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
+export default function RoutesClient({ apiKey, initialTasks, zones, collectors }: Props) {
   const [mobileTab, setMobileTab]       = useState<'tasks' | 'map'>('tasks')
   const [tasks, setTasks]               = useState<RouteTask[]>(initialTasks)
   const [selectedId, setSelectedId]     = useState<string | null>(null)
@@ -199,7 +200,8 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
   const [draftVertices, setDraftVertices] = useState<LatLng[]>([])
   const [draftColor, setDraftColor]     = useState(PRESET_COLORS[0])
   const [taskName, setTaskName]         = useState('')
-  const [zoneId, setZoneId]             = useState(zones[0]?.id ?? '')
+  const [draftZoneId, setDraftZoneId]   = useState(zones[0]?.id ?? '')
+  const [assignedToId, setAssignedToId] = useState('')
   const [filterZone, setFilterZone]     = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [panTarget, setPanTarget]       = useState<{ pos: LatLng; t: number } | null>(null)
@@ -262,15 +264,18 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
     setDraftVertices([])
     setTaskName('')
     setDraftColor(PRESET_COLORS[0])
+    setAssignedToId('')
   }
 
   const handleSave = () => {
-    if (!taskName.trim() || draftVertices.length < 3 || !zoneId) return
+    if (!taskName.trim() || draftVertices.length < 3 || !draftZoneId || !assignedToId) return
     startTransition(async () => {
-      const result = await createRouteTask({ name: taskName.trim(), polygon: draftVertices, color: draftColor, zoneId })
+      const result = await createRouteTask({ name: taskName.trim(), polygon: draftVertices, color: draftColor, zoneId: draftZoneId, assignedToId })
       if (result.ok) window.location.reload()
     })
   }
+
+  const collectorsInDraftZone = collectors.filter(c => c.zones.some(z => z.id === draftZoneId))
 
   // ── Task selection ────────────────────────────────────────────────────────
   const handleSelectTask = useCallback((task: RouteTask) => {
@@ -305,25 +310,23 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
     })
   }
 
-  const handleAdminRelease = (id: string) => {
-    if (!confirm('Force-release this task? The collector will lose their claim.')) return
+  const handleAdminReassign = (id: string, newCollectorId: string) => {
     startTransition(async () => {
-      await adminReleaseRouteTask(id)
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'active', assignedTo: null } : t))
+      await adminReassignRouteTask(id, newCollectorId)
+      const newCollector = collectors.find(c => c.id === newCollectorId) ?? null
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'assigned', assignedTo: newCollector } : t))
     })
   }
 
-  const zoneFiltered    = filterZone ? tasks.filter(t => t.zoneId === filterZone) : tasks
-  const filteredTasks   = filterStatus ? zoneFiltered.filter(t => t.status === filterStatus) : zoneFiltered
-  const unassignedTasks = filteredTasks.filter(t => t.status === 'active')
+  const zoneFiltered  = filterZone ? tasks.filter(t => t.zoneId === filterZone) : tasks
+  const filteredTasks = filterStatus ? zoneFiltered.filter(t => t.status === filterStatus) : zoneFiltered
   const assignedTasks   = filteredTasks.filter(t => t.status === 'assigned')
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in_progress')
   const completedTasks  = filteredTasks.filter(t => t.status === 'completed')
 
   const statusFilters = [
     { value: '',            label: 'All',         count: zoneFiltered.length },
-    { value: 'active',      label: 'Unassigned',  count: zoneFiltered.filter(t => t.status === 'active').length },
-    { value: 'assigned',    label: 'Accepted',    count: zoneFiltered.filter(t => t.status === 'assigned').length },
+    { value: 'assigned',    label: 'Assigned',    count: zoneFiltered.filter(t => t.status === 'assigned').length },
     { value: 'in_progress', label: 'In Progress', count: zoneFiltered.filter(t => t.status === 'in_progress').length },
     { value: 'completed',   label: 'Completed',   count: zoneFiltered.filter(t => t.status === 'completed').length },
   ]
@@ -408,23 +411,14 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
 
           {/* Task list */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1 bg-gray-50">
-            {unassignedTasks.length > 0 && (
-              <div className="mb-2">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-1">Unassigned ({unassignedTasks.length})</p>
-                {unassignedTasks.map(task => (
-                  <TaskCard key={task.id} task={task} selected={selectedId === task.id}
-                    onSelect={() => handleSelectTask(task)} onDelete={() => handleDelete(task.id)}
-                    onRename={name => handleRename(task.id, name)} onRelease={null} disabled={isPending} />
-                ))}
-              </div>
-            )}
             {assignedTasks.length > 0 && (
               <div className="mb-2">
-                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-wider px-2 mb-1">Accepted ({assignedTasks.length})</p>
+                <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-wider px-2 mb-1">Assigned ({assignedTasks.length})</p>
                 {assignedTasks.map(task => (
                   <TaskCard key={task.id} task={task} selected={selectedId === task.id}
                     onSelect={() => handleSelectTask(task)} onDelete={() => handleDelete(task.id)}
-                    onRename={name => handleRename(task.id, name)} onRelease={() => handleAdminRelease(task.id)} disabled={isPending} />
+                    onRename={name => handleRename(task.id, name)} onReassign={(cId) => handleAdminReassign(task.id, cId)}
+                    collectors={collectors.filter(c => c.zones.some(z => z.id === task.zoneId))} disabled={isPending} />
                 ))}
               </div>
             )}
@@ -434,7 +428,8 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
                 {inProgressTasks.map(task => (
                   <TaskCard key={task.id} task={task} selected={selectedId === task.id}
                     onSelect={() => handleSelectTask(task)} onDelete={() => handleDelete(task.id)}
-                    onRename={name => handleRename(task.id, name)} onRelease={() => handleAdminRelease(task.id)} disabled={isPending} />
+                    onRename={name => handleRename(task.id, name)} onReassign={(cId) => handleAdminReassign(task.id, cId)}
+                    collectors={collectors.filter(c => c.zones.some(z => z.id === task.zoneId))} disabled={isPending} />
                 ))}
               </div>
             )}
@@ -444,14 +439,15 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
                 {completedTasks.map(task => (
                   <TaskCard key={task.id} task={task} selected={selectedId === task.id}
                     onSelect={() => handleSelectTask(task)} onDelete={() => handleDelete(task.id)}
-                    onRename={name => handleRename(task.id, name)} onRelease={null} disabled={isPending} />
+                    onRename={name => handleRename(task.id, name)} onReassign={null}
+                    collectors={[]} disabled={isPending} />
                 ))}
               </div>
             )}
             {filteredTasks.length === 0 && (
               <div className="flex flex-col items-center justify-center h-32 text-gray-400 text-sm gap-2">
                 <Route size={24} className="opacity-30" />
-                {filterZone ? 'No tasks in this zone' : 'No route tasks yet'}
+                No route tasks yet
               </div>
             )}
           </div>
@@ -525,12 +521,25 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
                   ))}
                 </div>
               </div>
-              <div className="mb-4">
-                <p className="text-[11px] text-gray-400 mb-2">Assign to Zone</p>
-                <select value={zoneId} onChange={e => setZoneId(e.target.value)}
+              <div className="mb-3">
+                <p className="text-[11px] text-gray-400 mb-2">Zone</p>
+                <select value={draftZoneId} onChange={e => { setDraftZoneId(e.target.value); setAssignedToId('') }}
                   className="w-full bg-white/10 text-white border border-white/20 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-400">
                   <option value="" disabled className="text-gray-900">Select a zone…</option>
                   {zones.map(z => <option key={z.id} value={z.id} className="text-gray-900">{z.name}</option>)}
+                </select>
+              </div>
+              <div className="mb-4">
+                <p className="text-[11px] text-gray-400 mb-2">Assign to Collector</p>
+                <select value={assignedToId} onChange={e => setAssignedToId(e.target.value)}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-400"
+                  disabled={!draftZoneId}>
+                  <option value="" className="text-gray-900">{draftZoneId ? 'Select a collector…' : 'Select a zone first…'}</option>
+                  {collectorsInDraftZone.map(c => (
+                    <option key={c.id} value={c.id} className="text-gray-900">
+                      {c.firstName || c.lastName ? `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() : c.email}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-2">
@@ -542,7 +551,7 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
                   className="py-3 px-4 rounded-xl font-bold bg-white/10 hover:bg-white/20 text-white text-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Undo2 size={15} /> Edit
                 </button>
-                <button onClick={handleSave} disabled={isPending || !taskName.trim() || !zoneId || !draftReady}
+                <button onClick={handleSave} disabled={isPending || !taskName.trim() || !assignedToId || !draftReady}
                   className="flex-1 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white text-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-[0_0_15px_rgba(139,92,246,0.5)]">
                   <CheckCircle size={15} />
                   {isPending ? 'Saving…' : 'Publish to Collectors'}
@@ -556,13 +565,16 @@ export default function RoutesClient({ apiKey, initialTasks, zones }: Props) {
   )
 }
 
-function TaskCard({ task, selected, onSelect, onDelete, onRename, onRelease, disabled }: {
+function TaskCard({ task, selected, onSelect, onDelete, onRename, onReassign, collectors, disabled }: {
   task: RouteTask; selected: boolean; onSelect: () => void
-  onDelete: () => void; onRename: (name: string) => void; onRelease: (() => void) | null
+  onDelete: () => void; onRename: (name: string) => void
+  onReassign: ((collectorId: string) => void) | null
+  collectors: Collector[]
   disabled: boolean
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editName, setEditName]   = useState(task.name)
+  const [isEditing, setIsEditing]       = useState(false)
+  const [editName, setEditName]         = useState(task.name)
+  const [showReassign, setShowReassign] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { if (isEditing) inputRef.current?.focus() }, [isEditing])
@@ -580,7 +592,7 @@ function TaskCard({ task, selected, onSelect, onDelete, onRename, onRelease, dis
     : null
 
   const statusLabel: Record<string, string> = {
-    active: 'Unassigned', assigned: 'Accepted', in_progress: 'In Progress', completed: 'Completed',
+    active: 'Unassigned', assigned: 'Assigned', in_progress: 'In Progress', completed: 'Completed',
   }
   const statusColor: Record<string, string> = {
     active: 'bg-purple-100 text-purple-700',
@@ -605,17 +617,17 @@ function TaskCard({ task, selected, onSelect, onDelete, onRename, onRelease, dis
               <p className="text-sm font-semibold text-gray-900 truncate">{task.name}</p>
             )}
           </div>
-          <p className="text-[11px] text-gray-500">{task.zone.name}</p>
-          {assigneeName && <p className="text-[11px] text-blue-600 mt-0.5 truncate">👤 {assigneeName}</p>}
+          <p className="text-[11px] text-gray-400">{task.zone.name}</p>
+          {assigneeName && <p className="text-[11px] text-blue-600 truncate">👤 {assigneeName}</p>}
           {task._count.leads > 0 && (
             <p className="text-[11px] text-purple-600 mt-0.5">{task._count.leads} lead{task._count.leads !== 1 ? 's' : ''} collected</p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {onRelease && (
-            <button onClick={e => { e.stopPropagation(); onRelease() }} disabled={disabled}
-              title="Force-release task"
-              className="p-1 rounded text-gray-400 hover:text-orange-500 transition-colors disabled:opacity-40">
+          {onReassign && (
+            <button onClick={e => { e.stopPropagation(); setShowReassign(v => !v) }} disabled={disabled}
+              title="Reassign task"
+              className={`p-1 rounded transition-colors disabled:opacity-40 ${showReassign ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}>
               <RotateCcw size={13} />
             </button>
           )}
@@ -634,6 +646,27 @@ function TaskCard({ task, selected, onSelect, onDelete, onRename, onRelease, dis
       <span className={`mt-1.5 inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded ${statusColor[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
         {statusLabel[task.status] ?? task.status}
       </span>
+
+      {showReassign && onReassign && (
+        <div className="mt-2 border-t border-gray-100 pt-2" onClick={e => e.stopPropagation()}>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Reassign to</p>
+          {collectors.length === 0
+            ? <p className="text-xs text-gray-400">No collectors in this zone</p>
+            : <div className="space-y-1">
+                {collectors.map(c => (
+                  <button key={c.id} onClick={() => { onReassign(c.id); setShowReassign(false) }}
+                    className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded transition-colors truncate">
+                    {c.firstName || c.lastName ? `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() : c.email}
+                  </button>
+                ))}
+              </div>
+          }
+          <button onClick={() => setShowReassign(false)}
+            className="mt-1.5 w-full text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   )
 }

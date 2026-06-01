@@ -12,20 +12,14 @@ export default async function NewLeadPage({
   const { user } = await requireCollectorUser()
   const { taskId, lat, lng, address } = await searchParams
 
-  const zoneIds = user.zones.map(z => z.id)
-  const routeTasks = zoneIds.length > 0
-    ? await prisma.routeTask.findMany({
-        where: {
-          zoneId: { in: zoneIds },
-          OR: [
-            { status: 'active', assignedToId: null },
-            { assignedToId: user.id },
-          ],
-        },
-        select: { id: true, name: true, polygon: true, color: true },
-        orderBy: { createdAt: 'desc' },
-      })
-    : []
+  const routeTasks = await prisma.routeTask.findMany({
+    where: {
+      assignedToId: user.id,
+      status: { in: ['assigned', 'in_progress'] },
+    },
+    select: { id: true, name: true, polygon: true, color: true },
+    orderBy: { createdAt: 'desc' },
+  })
 
   const firstZone = user.zones[0] ?? null
 

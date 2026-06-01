@@ -8,23 +8,12 @@ import { Route, MapPin } from 'lucide-react'
 export default async function CollectorRoutesPage() {
   const { user } = await requireCollectorUser()
 
-  const zoneIds = user.zones.map(z => z.id)
-  const tasks = zoneIds.length > 0
-    ? await prisma.routeTask.findMany({
-        where: {
-          zoneId: { in: zoneIds },
-          OR: [
-            { status: 'active', assignedToId: null },
-            { assignedToId: user.id },
-          ],
-        },
-        include: { zone: { select: { name: true } } },
-        orderBy: { createdAt: 'desc' },
-      })
-    : []
+  const tasks = await prisma.routeTask.findMany({
+    where: { assignedToId: user.id },
+    orderBy: { createdAt: 'desc' },
+  })
 
-  const available   = tasks.filter((t) => t.status === 'active' && !t.assignedToId)
-  const accepted    = tasks.filter((t) => t.status === 'assigned' && t.assignedToId === user.id)
+  const accepted    = tasks.filter((t) => t.status === 'assigned')
   const inProgress  = tasks.filter((t) => t.status === 'in_progress' && t.assignedToId === user.id)
   const completed   = tasks.filter((t) => t.status === 'completed' && t.assignedToId === user.id)
 
@@ -41,14 +30,13 @@ export default async function CollectorRoutesPage() {
             <Route size={28} className="text-purple-400" />
           </div>
           <p className="font-bold text-gray-700 mb-1">No routes assigned yet</p>
-          <p className="text-sm text-gray-400">Your admin will assign route tasks to your zone.</p>
+          <p className="text-sm text-gray-400">No route tasks assigned to you yet.</p>
         </div>
       )}
 
       {[
-        { group: accepted,   label: 'Accepted',    labelCls: 'text-yellow-600', cardCls: 'bg-yellow-50 border-yellow-200',   btnCls: 'bg-yellow-500 hover:bg-yellow-600 text-white' },
+        { group: accepted,   label: 'Assigned',    labelCls: 'text-yellow-600', cardCls: 'bg-yellow-50 border-yellow-200',   btnCls: 'bg-yellow-500 hover:bg-yellow-600 text-white' },
         { group: inProgress, label: 'In Progress', labelCls: 'text-blue-600',   cardCls: 'bg-blue-50 border-blue-200',       btnCls: 'bg-blue-600 hover:bg-blue-700 text-white' },
-        { group: available,  label: 'Available',   labelCls: 'text-purple-600', cardCls: 'bg-purple-50 border-purple-200',   btnCls: 'bg-purple-600 hover:bg-purple-700 text-white' },
         { group: completed,  label: 'Completed',   labelCls: 'text-green-600',  cardCls: 'bg-gray-50 border-gray-200 opacity-70', btnCls: 'bg-gray-200 hover:bg-gray-300 text-gray-700' },
       ].map(({ group, label, labelCls, cardCls, btnCls }) =>
         group.length > 0 && (

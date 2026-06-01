@@ -15,7 +15,7 @@ export async function sendMail({
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE ?? to
   const { data, error } = await resend.emails.send({
-    from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
+    from: process.env.RESEND_FROM ? `Construction Market <${process.env.RESEND_FROM}>` : 'onboarding@resend.dev',
     to: recipient,
     subject,
     text,

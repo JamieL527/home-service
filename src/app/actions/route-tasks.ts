@@ -33,11 +33,13 @@ export async function createRouteTask(data: {
   polygon: LatLng[]
   color: string
   zoneId: string
+  assignedToId: string
 }): Promise<{ ok?: boolean; error?: string; id?: string }> {
   const userId = await getAdminUserId()
   if (!userId) return { error: 'Unauthorized' }
   if (!data.name.trim()) return { error: 'Task name is required' }
   if (!data.zoneId) return { error: 'Zone is required' }
+  if (!data.assignedToId) return { error: 'Collector is required' }
   if (!data.polygon || data.polygon.length < 3) return { error: 'Invalid polygon' }
 
   const task = await prisma.routeTask.create({
@@ -46,6 +48,8 @@ export async function createRouteTask(data: {
       polygon: data.polygon,
       color: data.color || '#8b5cf6',
       zoneId: data.zoneId,
+      assignedToId: data.assignedToId,
+      status: 'assigned',
       createdById: userId,
     },
   })
@@ -128,13 +132,13 @@ export async function renameRouteTask(id: string, name: string): Promise<{ ok?: 
   return { ok: true }
 }
 
-export async function adminReleaseRouteTask(id: string): Promise<{ ok?: boolean; error?: string }> {
+export async function adminReassignRouteTask(id: string, newCollectorId: string): Promise<{ ok?: boolean; error?: string }> {
   const userId = await getAdminUserId()
   if (!userId) return { error: 'Unauthorized' }
 
   await prisma.routeTask.update({
     where: { id },
-    data: { status: 'active', assignedToId: null },
+    data: { assignedToId: newCollectorId, status: 'assigned' },
   })
   revalidatePath('/admin/routes')
   revalidatePath('/collector/dashboard')

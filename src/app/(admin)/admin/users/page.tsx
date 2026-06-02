@@ -313,6 +313,9 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
                       <p className="text-xs text-gray-400 truncate">{company.contactName}</p>
                     )}
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {company.registrationType === 'referral' && (
+                        <span className="text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-1.5 py-0.5">Referral</span>
+                      )}
                       {company.tradeType && (
                         <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{company.tradeType}</span>
                       )}
@@ -365,7 +368,12 @@ async function ExternalUsersTab({ activeSub }: { activeSub: string }) {
                       <div className="flex items-center gap-3">
                         <Avatar name={company.name} />
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{company.name || '(unnamed)'}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-medium text-gray-900 truncate">{company.name || '(unnamed)'}</p>
+                            {company.registrationType === 'referral' && (
+                              <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-1.5 py-0.5">Referral</span>
+                            )}
+                          </div>
                           {company.contactName && (
                             <p className="text-xs text-gray-400 truncate">{company.contactName}</p>
                           )}

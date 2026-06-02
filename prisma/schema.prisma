@@ -43,8 +43,9 @@ model ContractorCompany {
   termsAcceptedAt DateTime?
   website         String?
   wsibNumber      String?
-  tradeType       String?
-  logoUrl         String?
+  tradeType           String?
+  logoUrl             String?
+  registrationType    String  @default("direct")
   jobs            Job[]
   offers          JobOffer[]
   users           User[]

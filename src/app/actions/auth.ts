@@ -101,6 +101,7 @@ export async function register(
   const password = formData.get('password') as string
   const firstName = (formData.get('firstName') as string)?.trim() || null
   const lastName = (formData.get('lastName') as string)?.trim() || null
+  const registrationType = formData.get('registrationType') === 'referral' ? 'referral' : 'direct'
 
   const passwordErrors = validatePassword(password)
   if (passwordErrors.length > 0) return { error: passwordErrors[0] }
@@ -120,7 +121,7 @@ export async function register(
 
   try {
     const company = await prisma.contractorCompany.create({
-      data: { name: '', status: 'UNVERIFIED_PROFILE' },
+      data: { name: '', status: 'UNVERIFIED_PROFILE', registrationType },
     })
     await prisma.user.create({
       data: {
@@ -185,13 +186,16 @@ export async function saveBusinessProfile(
   const wsibNumber = (formData.get('wsibNumber') as string)?.trim()
   const insuranceNumber = (formData.get('insuranceNumber') as string)?.trim()
   const termsAccepted = formData.get('termsAccepted') === 'on'
+  const privacyAccepted = formData.get('privacyAccepted') === 'on'
+  const serviceAgreementAccepted = formData.get('serviceAgreementAccepted') === 'on'
+  const scheduleAccepted = formData.get('scheduleAccepted') === 'on'
   const logoUrl = (formData.get('logoUrl') as string)?.trim() || null
 
   if (!name || !businessNumber || !address || !tradeType || !contactName || !contactTitle || !contactEmail || !contactPhone || !wsibNumber || !insuranceNumber) {
     return { error: 'Please fill in all required fields.' }
   }
-  if (!termsAccepted) {
-    return { error: 'You must accept the Terms & Conditions to continue.' }
+  if (!termsAccepted || !privacyAccepted || !serviceAgreementAccepted || !scheduleAccepted) {
+    return { error: 'You must accept all required agreements to continue.' }
   }
 
   await prisma.contractorCompany.update({
@@ -244,6 +248,7 @@ export async function getBusinessProfile() {
     wsibNumber: c.wsibNumber ?? '',
     insuranceNumber: c.insuranceNumber ?? '',
     logoUrl: c.logoUrl ?? '',
+    registrationType: c.registrationType ?? 'direct',
   }
 }
 

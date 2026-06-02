@@ -222,16 +222,16 @@ function HeroSection() {
   )
 }
 
-function ServiceCard({ service, delay }: { service: { icon: React.ElementType; secondaryIcon: React.ElementType; title: string; description: string }; delay: number }) {
+function ServiceCard({ service, delay }: { service: { icon: React.ElementType; secondaryIcon: React.ElementType; title: string; description: string; href?: string }; delay: number }) {
   const Icon = service.icon
   const SecondaryIcon = service.secondaryIcon
-  return (
+  const card = (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay }}
-      className="relative p-8 rounded-2xl bg-gradient-to-br from-[#1A1D29] to-[#0F1118] border border-[#00FFFF]/30 shadow-lg shadow-[#00FFFF]/20 transition-all duration-300 hover:scale-105 hover:border-[#00FFFF]/50"
+      className={`relative p-8 rounded-2xl bg-gradient-to-br from-[#1A1D29] to-[#0F1118] border border-[#00FFFF]/30 shadow-lg shadow-[#00FFFF]/20 transition-all duration-300 hover:scale-105 hover:border-[#00FFFF]/50 h-full${service.href ? ' cursor-pointer' : ''}`}
     >
       <div className="relative mb-6 flex items-center justify-center">
         <div className="relative w-20 h-20 flex items-center justify-center">
@@ -246,6 +246,7 @@ function ServiceCard({ service, delay }: { service: { icon: React.ElementType; s
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#00FFFF]/5 to-transparent pointer-events-none" />
     </motion.div>
   )
+  return service.href ? <Link href={service.href} className="block h-full">{card}</Link> : card
 }
 
 function ServiceOfferings() {
@@ -255,12 +256,14 @@ function ServiceOfferings() {
       secondaryIcon: Shield,
       title: 'DIRECT OUTREACH & Q.C.',
       description: 'Your outsourced sales department. We find active builders who need your trade, call them on your behalf, represent you at job-site meetings, and manage the deal through to a signed agreement.',
+      href: '/register',
     },
     {
       icon: Network,
       secondaryIcon: Link2,
       title: 'REFERRAL NETWORK',
       description: 'Zero-commitment lead access. We connect you directly with active builders and job sites through our network — you pay only when a referred deal closes.',
+      href: '/register?referral=true',
     },
     {
       icon: Radio,

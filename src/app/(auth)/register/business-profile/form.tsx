@@ -75,6 +75,7 @@ export type BusinessProfileValues = {
   wsibNumber: string
   insuranceNumber: string
   logoUrl?: string
+  registrationType?: string
 }
 
 export function BusinessProfileForm({
@@ -300,6 +301,8 @@ export function BusinessProfileForm({
           )}
 
           <div className="space-y-4 border-t border-white/10 pt-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Legal Agreements</p>
+
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -308,11 +311,61 @@ export function BusinessProfileForm({
                 required
               />
               <span className="text-sm text-gray-400">
-                I agree to the{' '}
-                <a href="/terms" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
-                  Terms & Conditions
-                </a>{' '}
-                and confirm that all information provided is accurate.
+                I have read and agree to the{' '}
+                <a href="/terms#terms" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                  Terms of Use
+                </a>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="privacyAccepted"
+                className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#00FFFF]"
+                required
+              />
+              <span className="text-sm text-gray-400">
+                I have read and agree to the{' '}
+                <a href="/terms#privacy" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                  Privacy Policy
+                </a>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="serviceAgreementAccepted"
+                className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#00FFFF]"
+                required
+              />
+              <span className="text-sm text-gray-400">
+                I have read and agree to the{' '}
+                <a href="/terms#service-agreement" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                  Service Agreement
+                </a>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="scheduleAccepted"
+                className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#00FFFF]"
+                required
+              />
+              <span className="text-sm text-gray-400">
+                I have read and agree to the{' '}
+                {initialValues?.registrationType === 'referral' ? (
+                  <a href="/legal/schedule-a" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                    Schedule A — Referral Network
+                  </a>
+                ) : (
+                  <a href="/legal/schedule-b" target="_blank" className="text-[#00FFFF] hover:text-[#00FFFF]/80 transition-colors">
+                    Schedule B — Direct Outreach
+                  </a>
+                )}
               </span>
             </label>
 

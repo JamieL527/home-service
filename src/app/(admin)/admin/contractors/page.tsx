@@ -48,6 +48,11 @@ export default async function ContractorsPage() {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-foreground">{company.name || '(unnamed)'}</p>
+                      {company.registrationType === 'referral' && (
+                        <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                          Referral
+                        </span>
+                      )}
                       {isActionRequired && (
                         <span className="rounded-full border border-amber-400/40 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
                           Action Required

@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { register } from '@/app/actions/auth'
 import { PasswordStrength } from '@/components/ui/password-strength'
@@ -15,6 +16,8 @@ const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking
 export default function RegisterPage() {
   const [state, action, isPending] = useActionState(register, null)
   const [password, setPassword] = useState('')
+  const searchParams = useSearchParams()
+  const isReferral = searchParams.get('referral') === 'true'
 
   const canSubmit = !isPending && isPasswordValid(password)
 
@@ -30,6 +33,7 @@ export default function RegisterPage() {
             </div>
 
             <form action={action} className="space-y-5">
+              <input type="hidden" name="registrationType" value={isReferral ? 'referral' : 'direct'} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="firstName" className={labelClass}>First Name</label>

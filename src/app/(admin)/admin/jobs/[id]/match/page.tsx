@@ -108,6 +108,11 @@ export default async function ContractorMatchPage({ params }: { params: Promise<
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="text-sm font-black text-gray-900">{company.name}</p>
+                    {company.registrationType === 'referral' && (
+                      <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2 py-0.5">
+                        Referral
+                      </span>
+                    )}
                     {isDeclined && (
                       <span className="text-[10px] font-bold bg-red-50 text-red-500 border border-red-200 rounded-full px-2 py-0.5">
                         Declined

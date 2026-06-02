@@ -51,7 +51,14 @@ export default async function ContractorManagementPage() {
               const status = company.status as string
               return (
                 <tr key={company.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium text-foreground">{company.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{company.name}</span>
+                      {company.registrationType === 'referral' && (
+                        <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-1.5 py-0.5">Referral</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{admin?.email ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span

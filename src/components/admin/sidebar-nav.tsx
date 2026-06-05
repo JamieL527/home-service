@@ -15,6 +15,7 @@ import {
   Settings,
   Map,
   Route,
+  Contact,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -37,6 +38,7 @@ const navItems: NavItem[] = [
   { href: '/admin/sales',       label: 'Sales',           icon: TrendingUp },
   { href: '/admin/jobs',        label: 'Jobs',            icon: Briefcase },
   { href: '/admin/permits',     label: 'Permits Map',     icon: Map },
+  { href: '/admin/crm',         label: 'CRM',             icon: Contact },
   { href: '/admin/users',       label: 'User Management', icon: Users },
   { href: '/admin/settings',   label: 'Settings',        icon: Settings },
 ]

@@ -1023,6 +1023,7 @@ export function EstimationWorkspace({
       {/* ── Scrollable gray section ── */}
       <div className="flex-1 overflow-y-auto bg-gray-100 px-4 sm:px-6 py-6 pb-24 sm:pb-10">
         <div className="max-w-4xl mx-auto space-y-6">
+          <JobOverviewSection deal={deal} job={job} isSales={isSales} />
           <ConstructionPlansSection deal={deal} isSales={isSales} isContractor={isContractor} />
           <TakeoffSection deal={deal} readOnly={readOnly} />
           <QuestionsSection deal={deal} currentUserId={currentUserId} />

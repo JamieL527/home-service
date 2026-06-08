@@ -268,6 +268,7 @@ export async function createQuote(
   revalidatePath(`/contractor/jobs`)
   revalidatePath('/sales/pipeline')
   revalidatePath('/admin/sales')
+  return { pdfUrl }
 }
 
 export async function updateQuote(
@@ -321,6 +322,7 @@ export async function updateQuote(
   revalidatePath(`/sales/deals/${dealId}`)
   revalidatePath('/sales/pipeline')
   revalidatePath('/admin/sales')
+  return { pdfUrl }
 }
 
 export async function submitDraftQuote(quoteId: string, dealId: string) {

@@ -14,9 +14,10 @@ export default async function ContractorEstimationPage({
   const { id } = await params
   const { company } = await requireContractorUser()
 
+  // Verify this job belongs to this contractor, fetch scope/timeline directly
   const job = await prisma.job.findFirst({
     where: { id, companyId: company.id },
-    select: { leadId: true, status: true },
+    select: { leadId: true, status: true, scope: true, serviceType: true, contractorType: true, timeline: true },
   })
   if (!job) notFound()
 
@@ -32,12 +33,14 @@ export default async function ContractorEstimationPage({
       measurements: { orderBy: { createdAt: 'asc' } },
       comments: {
         orderBy: { createdAt: 'asc' },
-        include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        include: { author: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
       },
       quotes: { orderBy: { version: 'desc' } },
     },
   })
   if (!deal) notFound()
+
+  const jobInfo = { scope: job.scope, serviceType: job.serviceType, contractorType: job.contractorType, timeline: job.timeline }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -46,12 +49,14 @@ export default async function ContractorEstimationPage({
     : null
 
   return (
-    <EstimationWorkspace
-      deal={deal}
-      currentUserId={currentUser?.id ?? ''}
-      pipelinePath={`/contractor/jobs/${id}`}
-      role="contractor"
-      readOnly={true}
-    />
+    <>
+      <EstimationWorkspace
+        deal={deal}
+        currentUserId={currentUser?.id ?? ''}
+        pipelinePath={`/contractor/jobs/${id}`}
+        role="contractor"
+        job={jobInfo}
+      />
+    </>
   )
 }

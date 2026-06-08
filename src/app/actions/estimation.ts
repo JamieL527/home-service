@@ -91,9 +91,11 @@ export async function addComment(dealId: string, content: string, authorId: stri
       ])
       if (!author || !deal) return
 
-      const authorName = author.firstName || author.lastName
-        ? `${author.firstName ?? ''} ${author.lastName ?? ''}`.trim()
-        : author.email
+      const authorName = author.role === 'CONTRACTOR'
+        ? (author.firstName || author.lastName
+            ? `${author.firstName ?? ''} ${author.lastName ?? ''}`.trim()
+            : author.email)
+        : 'Construction Market Team'
       const projectName = deal.projectName || deal.lead.address
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 

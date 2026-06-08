@@ -161,21 +161,21 @@ export default async function ContractorJobsPage({
                 <div key={offer.id} className={`rounded-xl border p-5 ${isReferral ? 'border-indigo-200 bg-indigo-50/40' : 'border-blue-200 bg-blue-50/40'}`}>
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className={`text-xs font-bold uppercase tracking-wide ${isReferral ? 'text-indigo-600' : 'text-blue-600'}`}>
-                          {isReferral ? 'Quote Request' : 'New Offer'}
-                        </p>
-                        {isReferral && (
-                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">Referral</span>
-                        )}
-                      </div>
+                      {!isReferral && (
+                        <p className="text-xs font-bold uppercase tracking-wide text-blue-600 mb-1">New Offer</p>
+                      )}
                       <p className="text-sm font-bold text-foreground">{isReferral ? job.lead.address : maskAddress(job.lead.address)}</p>
                     </div>
-                    {phase && (
-                      <span className={`shrink-0 text-[10px] font-bold bg-white border rounded-full px-2 py-0.5 ${isReferral ? 'border-indigo-200 text-indigo-600' : 'border-blue-200 text-blue-600'}`}>
-                        {PHASE_LABELS[phase] ?? phase}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isReferral && (
+                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">Referral</span>
+                      )}
+                      {phase && (
+                        <span className={`text-[10px] font-bold bg-white border rounded-full px-2 py-0.5 ${isReferral ? 'border-indigo-200 text-indigo-600' : 'border-blue-200 text-blue-600'}`}>
+                          {PHASE_LABELS[phase] ?? phase}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 text-sm text-muted-foreground">

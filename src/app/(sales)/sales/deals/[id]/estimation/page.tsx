@@ -20,18 +20,25 @@ export default async function EstimationPage({ params }: { params: Promise<{ id:
       lead: { select: { address: true, phase: true } },
       plans: { orderBy: { createdAt: 'asc' } },
       measurements: { orderBy: { createdAt: 'asc' } },
-      comments: { include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } }, orderBy: { createdAt: 'asc' } },
+      comments: { include: { author: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } }, orderBy: { createdAt: 'asc' } },
       quotes: { orderBy: { version: 'desc' } },
     },
   })
 
   if (!deal) notFound()
 
+  const job = await prisma.job.findFirst({
+    where: { leadId: deal.leadId },
+    select: { scope: true, serviceType: true, contractorType: true, timeline: true },
+    orderBy: { createdAt: 'desc' },
+  })
+
   return (
     <EstimationWorkspace
       deal={deal}
       currentUserId={currentUser?.id ?? ''}
       pipelinePath="/sales/pipeline"
+      job={job}
     />
   )
 }

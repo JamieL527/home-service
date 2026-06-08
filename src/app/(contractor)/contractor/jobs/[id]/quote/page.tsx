@@ -15,6 +15,10 @@ export default async function ContractorQuotePage({ params }: { params: Promise<
     select: {
       companyId: true,
       status: true,
+      scope: true,
+      serviceType: true,
+      contractorType: true,
+      timeline: true,
       lead: {
         select: {
           source: true,
@@ -24,7 +28,7 @@ export default async function ContractorQuotePage({ params }: { params: Promise<
               plans: { orderBy: { createdAt: 'asc' } },
               measurements: { orderBy: { createdAt: 'asc' } },
               comments: {
-                include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+                include: { author: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
                 orderBy: { createdAt: 'asc' },
               },
               quotes: { orderBy: { version: 'desc' } },
@@ -45,12 +49,15 @@ export default async function ContractorQuotePage({ params }: { params: Promise<
   const deal = job.lead.deals[0]
   if (!deal) notFound()
 
+  const jobInfo = { scope: job.scope, serviceType: job.serviceType, contractorType: job.contractorType, timeline: job.timeline }
+
   return (
     <EstimationWorkspace
       deal={deal}
       currentUserId={user.id}
       pipelinePath="/contractor/jobs"
       role="contractor"
+      job={jobInfo}
     />
   )
 }

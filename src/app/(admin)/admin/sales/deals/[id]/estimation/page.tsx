@@ -21,7 +21,7 @@ export default async function AdminEstimationPage({ params }: { params: Promise<
       plans: { orderBy: { createdAt: 'asc' } },
       measurements: { orderBy: { createdAt: 'asc' } },
       comments: {
-        include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        include: { author: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
         orderBy: { createdAt: 'asc' },
       },
       quotes: { orderBy: { version: 'desc' } },
@@ -30,11 +30,18 @@ export default async function AdminEstimationPage({ params }: { params: Promise<
 
   if (!deal) notFound()
 
+  const job = await prisma.job.findFirst({
+    where: { leadId: deal.leadId },
+    select: { scope: true, serviceType: true, contractorType: true, timeline: true },
+    orderBy: { createdAt: 'desc' },
+  })
+
   return (
     <EstimationWorkspace
       deal={deal}
       currentUserId={currentUser?.id ?? ''}
       pipelinePath="/admin/sales"
+      job={job}
     />
   )
 }

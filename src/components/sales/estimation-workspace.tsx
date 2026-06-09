@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   X, Plus, Trash2, Upload, FileText, MessageSquare, Ruler, Send,
-  ZoomIn, ZoomOut, Maximize2, Download, Sparkles, Calendar,
+  ZoomIn, ZoomOut, Maximize2, Download, Sparkles, Calendar, Clock,
   CheckCircle, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -156,7 +156,10 @@ function StatusCards({ deal, job }: { deal: Deal; job?: JobInfo | null }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Deadline</p>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Clock size={12} className={days != null && days < 0 ? 'text-red-500' : 'text-orange-400'} />
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Deadline</p>
+        </div>
         {endDate ? (
           <>
             <p className="text-sm font-bold text-gray-900">{fmtDate(endDate)}</p>
@@ -174,7 +177,10 @@ function StatusCards({ deal, job }: { deal: Deal; job?: JobInfo | null }) {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Site Visit</p>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Calendar size={12} className="text-blue-400" />
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Site Visit</p>
+        </div>
         {deal.siteVisitDate ? (
           <>
             <p className="text-sm font-bold text-gray-900">
@@ -191,13 +197,19 @@ function StatusCards({ deal, job }: { deal: Deal; job?: JobInfo | null }) {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Quote Status</p>
+        <div className="flex items-center gap-1.5 mb-2">
+          <FileText size={12} className="text-indigo-400" />
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Quote Status</p>
+        </div>
         <p className="text-sm font-bold text-gray-900">{qs.label}</p>
         <p className="text-xs text-gray-400 mt-1">{qs.sub}</p>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Measurements</p>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Ruler size={12} className="text-green-400" />
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Measurements</p>
+        </div>
         <p className="text-sm font-bold text-gray-900">{deal.measurements.length} captured</p>
         <p className="text-xs text-gray-400 mt-1">
           {deal.measurements.length > 0 ? 'Ready for quote' : 'None yet'}

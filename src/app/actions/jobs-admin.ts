@@ -198,6 +198,7 @@ export async function deleteReferralJob(jobId: string) {
     prisma.job.delete({ where: { id: jobId } }),
     prisma.deal.deleteMany({ where: { leadId: job.leadId } }),
     prisma.leadContact.deleteMany({ where: { leadId: job.leadId } }),
+    prisma.siteRole.deleteMany({ where: { leadId: job.leadId } }),
     prisma.lead.delete({ where: { id: job.leadId } }),
   ])
 

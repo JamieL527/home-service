@@ -939,13 +939,27 @@ function BuildQuoteSection({
                   onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))}
                   className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-400 min-w-0 w-full"
                 />
-                <select
-                  value={item.unit}
-                  onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, unit: e.target.value } : it))}
-                  className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 w-full"
-                >
-                  {LINE_ITEM_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <div className="flex flex-col gap-1">
+                  <select
+                    value={LINE_ITEM_UNITS.includes(item.unit) ? item.unit : '__custom__'}
+                    onChange={e => {
+                      const val = e.target.value
+                      setItems(p => p.map((it, i) => i === idx ? { ...it, unit: val === '__custom__' ? '' : val } : it))
+                    }}
+                    className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 w-full"
+                  >
+                    {LINE_ITEM_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    <option value="__custom__">Custom…</option>
+                  </select>
+                  {!LINE_ITEM_UNITS.includes(item.unit) && (
+                    <input
+                      value={item.unit}
+                      placeholder="unit"
+                      onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, unit: e.target.value } : it))}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 w-full"
+                    />
+                  )}
+                </div>
                 <input
                   type="number" min={1} value={item.quantity}
                   onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, quantity: Number(e.target.value) } : it))}

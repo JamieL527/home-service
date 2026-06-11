@@ -18,68 +18,106 @@ type Company = {
   website: string | null
   address: string | null
   logoUrl: string | null
+  registrationType: string
+  termsAcceptedAt: Date | null
+  accountEmail: string
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-700',
-  PENDING_APPROVAL: 'bg-yellow-100 text-yellow-700',
-  UNVERIFIED_PROFILE: 'bg-gray-100 text-gray-600',
-  ACTION_REQUIRED: 'bg-orange-100 text-orange-700',
-  REJECTED: 'bg-red-100 text-red-700',
+function standardizeTitle(title: string | null): string | null {
+  if (!title) return title
+  return title.replace(/\b\w/g, c => c.toUpperCase())
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: 'Active',
-  PENDING_APPROVAL: 'Pending Approval',
-  UNVERIFIED_PROFILE: 'Profile Incomplete',
-  ACTION_REQUIRED: 'Action Required',
-  REJECTED: 'Rejected',
+function formatPhone(phone: string | null): string | null {
+  if (!phone) return phone
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 11 && digits[0] === '1') {
+    return `${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+  return phone
 }
 
-function ReadonlyField({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
-      <p className="text-sm text-foreground">{value || '—'}</p>
-    </div>
-  )
+const psec: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e7e8ef',
+  borderRadius: 14,
+  padding: '22px 24px',
+  marginBottom: 16,
 }
 
-function EditField({
+const psecH3: React.CSSProperties = {
+  margin: '0 0 6px',
+  fontSize: 13,
+  fontWeight: 800,
+  letterSpacing: '.04em',
+  textTransform: 'uppercase',
+  color: '#64748b',
+}
+
+function PRow({
   label,
-  name,
   value,
-  type = 'text',
-  placeholder,
+  verified,
+  fixed: fixedNote,
+  children,
 }: {
   label: string
-  name: string
-  value: string
-  type?: string
-  placeholder?: string
+  value?: string | null
+  verified?: boolean
+  fixed?: string
+  children?: React.ReactNode
 }) {
   return (
-    <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
-      <input
-        name={name}
-        defaultValue={value}
-        type={type}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 text-sm border border-input rounded-md outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 bg-background"
-      />
+    <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 14, padding: '12px 0', borderTop: '1px solid #e7e8ef', fontSize: 14 }}>
+      <div style={{ color: '#64748b' }}>{label}</div>
+      <div style={{ fontWeight: 600, color: '#0f172a' }}>
+        {children ?? (
+          <>
+            {value || '—'}
+            {verified && (
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 9px', borderRadius: 999, marginLeft: 8, whiteSpace: 'nowrap' }}>
+                ✓ Verified
+              </span>
+            )}
+            {fixedNote && (
+              <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#d97706', marginLeft: 8 }}>
+                {fixedNote}
+              </span>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
 
 export default function ProfileForm({ company }: { company: Company }) {
   const [editing, setEditing] = useState(false)
-  const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [logoUrl, setLogoUrl] = useState(company.logoUrl ?? '')
   const [logoUploading, setLogoUploading] = useState(false)
   const logoRef = useRef<HTMLInputElement>(null)
+
+  const initials = company.name
+    ? company.name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase()
+    : '?'
+
+  const serviceTier = company.registrationType === 'referral'
+    ? 'Referral Network · free (10% on closed deals)'
+    : 'Direct Outreach & Q.C.'
+
+  const termsDate = company.termsAcceptedAt
+    ? new Date(company.termsAcceptedAt).toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })
+    : null
+
+  const agreementName = company.registrationType === 'referral'
+    ? 'Referral Service Agreement v1.0'
+    : 'Direct Outreach Agreement v1.0'
 
   async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -92,7 +130,19 @@ export default function ProfileForm({ company }: { company: Company }) {
       const { error: uploadError } = await supabase.storage.from('contractor-logos').upload(path, file, { upsert: false })
       if (uploadError) throw uploadError
       const { data } = supabase.storage.from('contractor-logos').getPublicUrl(path)
-      setLogoUrl(data.publicUrl)
+      const newUrl = data.publicUrl
+      setLogoUrl(newUrl)
+      startTransition(async () => {
+        await updateContractorProfile({
+          contactName: company.contactName ?? '',
+          contactTitle: company.contactTitle ?? '',
+          contactEmail: company.contactEmail ?? '',
+          contactPhone: company.contactPhone ?? '',
+          website: company.website ?? '',
+          address: company.address ?? '',
+          logoUrl: newUrl,
+        })
+      })
     } catch {
       setError('Logo upload failed. Please try again.')
     } finally {
@@ -100,28 +150,20 @@ export default function ProfileForm({ company }: { company: Company }) {
     }
   }
 
-  function handleCancel() {
-    setEditing(false)
-    setError(null)
-    setSuccess(false)
-  }
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const data = {
-      contactName: fd.get('contactName') as string,
-      contactTitle: fd.get('contactTitle') as string,
-      contactEmail: fd.get('contactEmail') as string,
-      contactPhone: fd.get('contactPhone') as string,
-      website: fd.get('website') as string,
-      address: fd.get('address') as string,
-      logoUrl,
-    }
     setError(null)
-    setSuccess(false)
     startTransition(async () => {
-      const result = await updateContractorProfile(data)
+      const result = await updateContractorProfile({
+        contactName: fd.get('contactName') as string,
+        contactTitle: fd.get('contactTitle') as string,
+        contactEmail: fd.get('contactEmail') as string,
+        contactPhone: fd.get('contactPhone') as string,
+        website: fd.get('website') as string,
+        address: fd.get('address') as string,
+        logoUrl,
+      })
       if (result.error) {
         setError(result.error)
       } else {
@@ -131,151 +173,160 @@ export default function ProfileForm({ company }: { company: Company }) {
     })
   }
 
-  const statusStyle = STATUS_STYLES[company.status] ?? 'bg-gray-100 text-gray-600'
-  const statusLabel = STATUS_LABELS[company.status] ?? company.status
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    border: '1px solid #e7e8ef',
+    borderRadius: 9,
+    padding: '9px 12px',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    outline: 'none',
+    color: '#0f172a',
+    background: '#fff',
+    boxSizing: 'border-box',
+  }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
-        {!editing && (
-          <button
-            onClick={() => { setEditing(true); setSuccess(false) }}
-            className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
-          >
-            Edit Profile
-          </button>
-        )}
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a', margin: '0 0 14px' }}>
+        Profile
+      </h1>
+
+      {/* pnote */}
+      <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '14px 16px', fontSize: 13, color: '#92400e', marginBottom: 18 }}>
+        This is your verified account profile — the record Construction Market holds after approval. A few fields were standardized from your application (phone formatting, contact title). To change anything, message the team.
       </div>
 
-      {success && (
-        <div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Profile updated successfully
-        </div>
-      )}
-
-      {/* Company Information (read-only) */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Company Information</h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ReadonlyField label="Business Registered Name" value={company.name} />
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Account Status</p>
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle}`}>
-              {statusLabel}
-            </span>
-          </div>
-          <ReadonlyField label="Business Number" value={company.businessNumber} />
-          <ReadonlyField label="Trade / Service Type" value={company.tradeType} />
-          <ReadonlyField label="WSIB Number" value={company.wsibNumber} />
-          <ReadonlyField label="Insurance Number" value={company.insuranceNumber} />
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <p className="text-xs font-medium text-muted-foreground mb-3">Company Logo</p>
-          <div className="flex items-center gap-4">
+      {/* Brand / Logo */}
+      <div style={psec}>
+        <h3 style={psecH3}>Brand / Logo</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+          <div style={{ width: 86, height: 86, borderRadius: 14, background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26, overflow: 'hidden', flexShrink: 0 }}>
             {logoUrl
-              ? <img src={logoUrl} alt="Company logo" className="h-14 w-14 rounded-lg object-contain border border-border bg-muted" />
-              : <div className="h-14 w-14 rounded-lg border border-dashed border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">No logo</div>
-            }
-            <div className="space-y-1">
-              <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoFile} />
-              <button
-                type="button"
-                onClick={() => logoRef.current?.click()}
-                disabled={logoUploading}
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {logoUploading ? 'Uploading…' : logoUrl ? 'Change Logo' : 'Upload Logo'}
-              </button>
-              {logoUrl && (
-                <button type="button" onClick={() => setLogoUrl('')} className="block text-xs text-muted-foreground hover:text-destructive">
-                  Remove
-                </button>
-              )}
-            </div>
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              : initials}
           </div>
-          {logoUrl && !editing && (
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>Company logo</div>
+            <div style={{ fontSize: 13, color: '#64748b', margin: '4px 0 10px' }}>Upload your logo — it appears on every quote you issue.</div>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
             <button
               type="button"
-              disabled={isPending}
-              onClick={() => startTransition(async () => {
-                await updateContractorProfile({
-                  contactName: company.contactName ?? '',
-                  contactTitle: company.contactTitle ?? '',
-                  contactEmail: company.contactEmail ?? '',
-                  contactPhone: company.contactPhone ?? '',
-                  website: company.website ?? '',
-                  address: company.address ?? '',
-                  logoUrl,
-                })
-                setSuccess(true)
-              })}
-              className="mt-2 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+              onClick={() => logoRef.current?.click()}
+              disabled={logoUploading}
+              style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '9px 14px', cursor: logoUploading ? 'not-allowed' : 'pointer', opacity: logoUploading ? 0.55 : 1 }}
             >
-              {isPending ? 'Saving…' : 'Save Logo'}
+              ⬆ {logoUploading ? 'Uploading…' : 'Upload logo'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Company */}
+      <div style={psec}>
+        <h3 style={psecH3}>Company</h3>
+        <PRow label="Legal name" value={company.name} />
+        <PRow label="Trade / service" value={company.tradeType} verified />
+        <PRow label="Business address" value={company.address} />
+        <PRow label="Website" value={company.website || '—'} />
+        <PRow label="Account email" value={company.accountEmail} />
+      </div>
+
+      {/* Person in charge */}
+      <div style={psec}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <h3 style={{ ...psecH3, margin: 0 }}>Person in charge</h3>
+          {!editing && (
+            <button
+              onClick={() => { setEditing(true); setSuccess(false) }}
+              style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              Edit
             </button>
           )}
         </div>
 
-        <p className="text-xs text-muted-foreground border-t border-border pt-3">
-          To update company registration details, please contact support.
-        </p>
+        {editing ? (
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Name</label>
+                  <input name="contactName" defaultValue={company.contactName ?? ''} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Title</label>
+                  <input name="contactTitle" defaultValue={company.contactTitle ?? ''} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Email</label>
+                  <input name="contactEmail" type="email" defaultValue={company.contactEmail ?? ''} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Phone</label>
+                  <input name="contactPhone" defaultValue={company.contactPhone ?? ''} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Website</label>
+                  <input name="website" defaultValue={company.website ?? ''} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Business address</label>
+                  <input name="address" defaultValue={company.address ?? ''} style={inputStyle} />
+                </div>
+              </div>
+              {error && <p style={{ fontSize: 13, color: '#ef4444', margin: 0 }}>{error}</p>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => { setEditing(false); setError(null) }}
+                  disabled={isPending}
+                  style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '10px 18px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  style={{ background: '#2563eb', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '10px 18px', cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.6 : 1 }}
+                >
+                  {isPending ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <>
+            {success && (
+              <div style={{ fontSize: 13, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 4 }}>
+                Profile updated successfully
+              </div>
+            )}
+            <PRow label="Name" value={company.contactName} />
+            <PRow label="Title" value={standardizeTitle(company.contactTitle)} fixed="standardized from application" />
+            <PRow label="Email" value={company.contactEmail} />
+            <PRow label="Phone" value={formatPhone(company.contactPhone)} fixed="formatted" />
+          </>
+        )}
       </div>
 
-      {/* Contact Information */}
-      <form onSubmit={handleSubmit}>
-        <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Contact Information</h2>
+      {/* Insurance & compliance */}
+      <div style={psec}>
+        <h3 style={psecH3}>Insurance &amp; compliance</h3>
+        <PRow label="WSIB number" value={company.wsibNumber} verified />
+        <PRow label="Insurance number" value={company.insuranceNumber} verified />
+      </div>
 
-          {editing ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <EditField label="Contact Person Name" name="contactName" value={company.contactName ?? ''} placeholder="Full name" />
-              <EditField label="Contact Title" name="contactTitle" value={company.contactTitle ?? ''} placeholder="e.g. Owner, Manager" />
-              <EditField label="Contact Email" name="contactEmail" value={company.contactEmail ?? ''} type="email" placeholder="email@example.com" />
-              <EditField label="Contact Phone" name="contactPhone" value={company.contactPhone ?? ''} type="tel" placeholder="+1 (416) 000-0000" />
-              <EditField label="Website" name="website" value={company.website ?? ''} placeholder="e.g. example.com or https://example.com" />
-              <EditField label="Office Address" name="address" value={company.address ?? ''} placeholder="123 Main St, Toronto, ON" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <ReadonlyField label="Contact Person Name" value={company.contactName} />
-              <ReadonlyField label="Contact Title" value={company.contactTitle} />
-              <ReadonlyField label="Contact Email" value={company.contactEmail} />
-              <ReadonlyField label="Contact Phone" value={company.contactPhone} />
-              <ReadonlyField label="Website" value={company.website} />
-              <ReadonlyField label="Office Address" value={company.address} />
-            </div>
-          )}
-        </div>
-
-        {editing && (
-          <div className="mt-4 flex items-center gap-3">
-            {error && <p className="text-sm text-red-600 flex-1">{error}</p>}
-            <div className="flex items-center gap-3 ml-auto">
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={isPending}
-                className="px-4 py-2 rounded-md border border-input text-sm font-medium text-foreground hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isPending}
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {isPending ? 'Saving…' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
+      {/* Account */}
+      <div style={psec}>
+        <h3 style={psecH3}>Account</h3>
+        <PRow label="Service tier" value={serviceTier} />
+        <PRow label="Status" value="Active" />
+        {termsDate && (
+          <PRow label="Agreement accepted" value={`${termsDate} · ${agreementName}`} />
         )}
-      </form>
+      </div>
     </div>
   )
 }

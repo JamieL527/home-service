@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     } else if (status === 'PENDING_APPROVAL') {
       response.headers.set('location', new URL('/register/pending', origin).toString())
     } else if (status === 'ACTIVE') {
-      response.headers.set('location', new URL('/contractor/overview', origin).toString())
+      response.headers.set('location', new URL('/contractor/jobs', origin).toString())
     }
     return response
   }

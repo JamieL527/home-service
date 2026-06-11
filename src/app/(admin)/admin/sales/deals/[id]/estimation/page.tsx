@@ -17,7 +17,7 @@ export default async function AdminEstimationPage({ params }: { params: Promise<
   const deal = await prisma.deal.findUnique({
     where: { id },
     include: {
-      lead: { select: { address: true, phase: true } },
+      lead: { select: { address: true, phase: true, source: true } },
       plans: { orderBy: { createdAt: 'asc' } },
       measurements: { orderBy: { createdAt: 'asc' } },
       comments: {

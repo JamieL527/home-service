@@ -32,9 +32,8 @@ function formatPrice(job: {
 export default async function ContractorOverviewPage() {
   const { company } = await requireContractorUser()
 
-  const [memberCount, offerCount, activeCount, completedCount, pendingOffers] = await Promise.all([
+  const [memberCount, regularActiveCount, regularCompletedCount, allPendingOffers] = await Promise.all([
     prisma.user.count({ where: { contractorCompanyId: company.id } }),
-    prisma.jobOffer.count({ where: { companyId: company.id, status: 'pending' } }),
     prisma.job.count({
       where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] } },
     }),
@@ -43,11 +42,52 @@ export default async function ContractorOverviewPage() {
     }),
     prisma.jobOffer.findMany({
       where: { companyId: company.id, status: 'pending' },
-      include: { job: { include: { lead: { select: { address: true } } } } },
+      select: {
+        id: true,
+        sentAt: true,
+        job: {
+          select: {
+            phase: true,
+            serviceType: true,
+            priceType: true,
+            priceFixed: true,
+            priceMin: true,
+            priceMax: true,
+            lead: {
+              select: {
+                address: true,
+                source: true,
+                deals: {
+                  select: { quotes: { select: { status: true } } },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: { sentAt: 'desc' },
-      take: 5,
     }),
   ])
+
+  // Classify referral offers the same way as the jobs page
+  function classifyOffer(offer: typeof allPendingOffers[number]) {
+    const lead = offer.job.lead
+    if (lead.source !== 'referral') return 'offers'
+    const quotes = lead.deals[0]?.quotes ?? []
+    const hasDraft = quotes.some(q => q.status === 'draft')
+    const hasSubmitted = quotes.some(q =>
+      ['pending_review', 'submitted', 'accepted'].includes(q.status)
+    )
+    if (hasDraft) return 'active'
+    if (hasSubmitted) return 'completed'
+    return 'offers'
+  }
+
+  const offerCount = allPendingOffers.filter(o => classifyOffer(o) === 'offers').length
+  const activeCount = regularActiveCount + allPendingOffers.filter(o => classifyOffer(o) === 'active').length
+  const completedCount = regularCompletedCount + allPendingOffers.filter(o => classifyOffer(o) === 'completed').length
+  const pendingOffers = allPendingOffers.filter(o => classifyOffer(o) === 'offers').slice(0, 5)
 
   return (
     <div className="animate-fadeIn">

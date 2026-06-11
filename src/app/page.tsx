@@ -8,7 +8,7 @@ const ROLE_ROUTES: Record<string, string> = {
   SALES:          '/sales',
   MARKETING:      '/marketing/inbox',
   DATA_COLLECTOR: '/collector/dashboard',
-  CONTRACTOR:     '/contractor/overview',
+  CONTRACTOR:     '/contractor/jobs',
 }
 
 export default async function RootPage() {

@@ -4,8 +4,8 @@ import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  X, Plus, Trash2, Upload, FileText, MessageSquare, Ruler, Send,
-  ZoomIn, ZoomOut, Maximize2, Download, Sparkles, Calendar, Clock,
+  X, Plus, Trash2, FileText, MessageSquare, Ruler,
+  Sparkles, Calendar, Clock,
   CheckCircle, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -16,6 +16,7 @@ const PLAN_TYPES = ['Floor Plan', 'Elevation', 'Foundation', 'Framing', 'Electri
 const CONTRACTOR_UPLOAD_TYPES = ['Site Photo', 'Field Measurement', 'Reference Image', 'Other']
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
 const UNITS = ['sqft', 'sq m', 'ft', 'm', 'lf', 'ea', 'pcs', 'hrs']
+const LINE_ITEM_UNITS = ['ea', 'sq ft', 'lin ft', 'cu yd', 'hr', 'day', 'lump sum']
 
 type Plan = { id: string; name: string; planType: string; fileUrl: string; fileType: string; uploadedByRole: string | null }
 type Measurement = { id: string; label: string; type: string; value: number; unit: string; notes: string | null }
@@ -23,10 +24,11 @@ type Comment = {
   id: string; content: string; createdAt: Date
   author: { id: string; firstName: string | null; lastName: string | null; email: string; role: string }
 }
-type LineItem = { description: string; quantity: number; unitPrice: number }
+type LineItem = { description: string; quantity: number; unit: string; unitPrice: number }
 type Quote = {
   id: string; version: number; lineItems: unknown; subtotal: number | null; tax: number | null
-  total: number | null; status: string; notes: string | null; pdfUrl: string | null; createdAt: Date
+  total: number | null; status: string; notes: string | null; pdfUrl: string | null
+  createdAt: Date; submittedAt: Date | null
 }
 type Deal = {
   id: string
@@ -35,7 +37,7 @@ type Deal = {
   projectType: string | null
   currentStage: string
   siteVisitDate: Date | null
-  lead: { address: string; phase: string | null }
+  lead: { address: string; phase: string | null; source: string | null }
   plans: Plan[]
   measurements: Measurement[]
   comments: Comment[]
@@ -59,6 +61,15 @@ function parseEndDate(timeline: string | null): Date | null {
   if (!m) return null
   const d = new Date(m[1])
   return isNaN(d.getTime()) ? null : d
+}
+
+function dealQuoteNo(dealId: string, version: number): string {
+  let h = 0
+  for (let i = 0; i < dealId.length; i++) {
+    h = Math.imul(31, h) + dealId.charCodeAt(i) | 0
+  }
+  const base = (Math.abs(h) % 900000) + 100000
+  return `Q-${base}-V${version}`
 }
 
 function parseStartDate(timeline: string | null): Date | null {
@@ -153,68 +164,46 @@ function StatusCards({ deal, job }: { deal: Deal; job?: JobInfo | null }) {
   const days = endDate ? daysFromNow(endDate) : null
   const qs = deriveQuoteStatus(deal.quotes)
 
+  const cards = [
+    {
+      icon: '⏱',
+      label: 'Deadline',
+      value: endDate ? fmtDate(endDate) : 'Not set',
+      sub: days != null ? (days < 0 ? `${Math.abs(days)} days overdue` : `${days} days remaining`) : 'No end date',
+      red: days != null && days < 0,
+    },
+    {
+      icon: '📅',
+      label: 'Site visit',
+      value: deal.siteVisitDate
+        ? new Date(deal.siteVisitDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Not scheduled',
+      sub: deal.siteVisitDate ? 'Scheduled' : 'Request below',
+      red: false,
+    },
+    { icon: '📄', label: 'Quote status', value: qs.label, sub: qs.sub, red: false },
+    {
+      icon: '📐',
+      label: 'Measurements',
+      value: `${deal.measurements.length} captured`,
+      sub: deal.measurements.length > 0 ? 'Ready for quote' : 'None yet',
+      red: false,
+    },
+  ]
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Clock size={12} className={days != null && days < 0 ? 'text-red-500' : 'text-orange-400'} />
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Deadline</p>
+    <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 14, margin: '22px 0 8px' }}>
+      {cards.map((c, i) => (
+        <div key={i} style={{ background: '#fff', border: '1px solid #e7e8ef', borderRadius: 13, padding: '15px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+            {c.icon} {c.label}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: c.red ? '#ef4444' : '#0f172a' }}>
+            {c.value}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.sub}</div>
         </div>
-        {endDate ? (
-          <>
-            <p className="text-sm font-bold text-gray-900">{fmtDate(endDate)}</p>
-            <p className={`text-xs font-semibold mt-1 ${days != null && days < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-              {days != null
-                ? days < 0
-                  ? `${Math.abs(days)} days overdue`
-                  : `${days} days remaining`
-                : ''}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-gray-400">Not set</p>
-        )}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Calendar size={12} className="text-blue-400" />
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Site Visit</p>
-        </div>
-        {deal.siteVisitDate ? (
-          <>
-            <p className="text-sm font-bold text-gray-900">
-              {new Date(deal.siteVisitDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Scheduled</p>
-          </>
-        ) : (
-          <>
-            <p className="text-sm font-bold text-gray-900">Not scheduled</p>
-            <p className="text-xs text-gray-400 mt-1">Pending</p>
-          </>
-        )}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <FileText size={12} className="text-indigo-400" />
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Quote Status</p>
-        </div>
-        <p className="text-sm font-bold text-gray-900">{qs.label}</p>
-        <p className="text-xs text-gray-400 mt-1">{qs.sub}</p>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Ruler size={12} className="text-green-400" />
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Measurements</p>
-        </div>
-        <p className="text-sm font-bold text-gray-900">{deal.measurements.length} captured</p>
-        <p className="text-xs text-gray-400 mt-1">
-          {deal.measurements.length > 0 ? 'Ready for quote' : 'None yet'}
-        </p>
-      </div>
+      ))}
     </div>
   )
 }
@@ -225,61 +214,49 @@ function JobOverviewSection({ deal, job, isSales }: { deal: Deal; job?: JobInfo 
   const startDate = parseStartDate(job?.timeline ?? null)
   const endDate = parseEndDate(job?.timeline ?? null)
 
+  const lbl: React.CSSProperties = { fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 7 }
+  const bodytext: React.CSSProperties = { fontSize: 14, color: '#334155' }
+
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Job Overview</h2>
-        <p className="text-sm text-gray-500">Project scope and timeline details</p>
-      </div>
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Scope of Work</p>
-            {job?.scope
-              ? <p className="text-sm text-gray-700 leading-relaxed">{job.scope}</p>
-              : <p className="text-sm text-gray-400 italic">Not specified</p>}
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Trade</p>
-            {job?.serviceType || job?.contractorType
-              ? <p className="text-sm text-gray-700">{job.serviceType ?? job.contractorType}</p>
-              : <p className="text-sm text-gray-400 italic">Not specified</p>}
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Project Timeline</p>
-            {startDate || endDate ? (
-              <div className="space-y-1">
-                {startDate && (
-                  <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                    <Calendar size={12} className="text-gray-400 shrink-0" /> Start: {fmtDate(startDate)}
-                  </p>
-                )}
-                {endDate && (
-                  <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                    <Calendar size={12} className="text-gray-400 shrink-0" /> End: {fmtDate(endDate)}
-                  </p>
+      <h2 style={{ fontSize: 20, fontWeight: 800, margin: '30px 0 4px', color: '#0f172a' }}>Job overview</h2>
+      <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 16px' }}>Project scope and timeline details</p>
+      <div style={{ background: '#fff', border: '1px solid #e7e8ef', borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,.04),0 10px 30px rgba(15,23,42,.06)' }}>
+        <div style={{ padding: '22px 24px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr]" style={{ gap: 26 }}>
+            <div>
+              <div style={lbl}>Scope of work</div>
+              <div style={bodytext}>
+                {job?.scope || <em style={{ color: '#94a3b8' }}>Not specified</em>}
+              </div>
+              <div style={{ ...lbl, marginTop: 18 }}>Project timeline</div>
+              <div style={bodytext}>
+                {startDate || endDate ? (
+                  <>
+                    {startDate && <div>Start: {fmtDate(startDate)}</div>}
+                    {endDate && <div>End: {fmtDate(endDate)}</div>}
+                  </>
+                ) : (
+                  <em style={{ color: '#94a3b8' }}>{job?.timeline || 'Not specified'}</em>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-gray-400 italic">{job?.timeline || 'Not specified'}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Site Visit</p>
-            {isSales ? (
-              <SiteVisitEditor dealId={deal.id} initialDate={deal.siteVisitDate} />
-            ) : deal.siteVisitDate ? (
-              <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                <Calendar size={12} className="text-gray-400 shrink-0" />
-                {new Date(deal.siteVisitDate).toLocaleDateString('en-CA', {
-                  weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-                })}
-              </p>
-            ) : (
-              <p className="text-sm text-orange-500 flex items-center gap-1.5">
-                <AlertCircle size={12} className="shrink-0" /> Not scheduled yet
-              </p>
-            )}
+            </div>
+            <div>
+              <div style={lbl}>Trade</div>
+              <div style={bodytext}>
+                {job?.serviceType ?? job?.contractorType ?? <em style={{ color: '#94a3b8' }}>Not specified</em>}
+              </div>
+              <div style={{ ...lbl, marginTop: 18 }}>Site visit</div>
+              <div style={bodytext}>
+                {isSales ? (
+                  <SiteVisitEditor dealId={deal.id} initialDate={deal.siteVisitDate} />
+                ) : deal.siteVisitDate ? (
+                  new Date(deal.siteVisitDate).toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+                ) : (
+                  'Not scheduled yet'
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -293,19 +270,8 @@ function ConstructionPlansSection({ deal, isSales, isContractor }: { deal: Deal;
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
-
-  // Chips shown: sales sees plan types, contractor also sees their upload types
-  const fixedChips = isContractor ? [...PLAN_TYPES, ...CONTRACTOR_UPLOAD_TYPES] : PLAN_TYPES
-  const uploadedTypes = [...new Set(deal.plans.map(p => p.planType))]
-  const allChips = [...fixedChips, ...uploadedTypes.filter(t => !fixedChips.includes(t))]
-
-  const [selectedType, setSelectedType] = useState(allChips[0])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [zoom, setZoom] = useState(100)
-
-  const selectedPlans = deal.plans.filter(p => p.planType === selectedType)
-  const currentPlan = selectedPlans[0]
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -325,7 +291,7 @@ function ConstructionPlansSection({ deal, isSales, isContractor }: { deal: Deal;
       const { data } = supabase.storage.from('deal-plans').getPublicUrl(path)
       const name = file.name.replace(/\.[^.]+$/, '')
       startTransition(async () => {
-        await addDealPlan(deal.id, { name, planType: selectedType, fileUrl: data.publicUrl, fileType: file.type })
+        await addDealPlan(deal.id, { name, planType: 'Floor Plan', fileUrl: data.publicUrl, fileType: file.type })
         router.refresh()
       })
     } catch {
@@ -344,126 +310,76 @@ function ConstructionPlansSection({ deal, isSales, isContractor }: { deal: Deal;
     })
   }
 
-  function downloadAll() {
-    deal.plans.forEach(p => window.open(p.fileUrl, '_blank'))
-  }
-
-  // Sales can delete any plan; contractor can only delete their own uploads
   const canDelete = (plan: Plan) =>
     isSales || (isContractor && plan.uploadedByRole === 'CONTRACTOR')
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Construction Plans</h2>
-        <p className="text-sm text-gray-500">View project drawings and specifications</p>
+      {/* q-h header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Plans &amp; photos</h3>
+        <div>
+          <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleFile} className="hidden" />
+          <button
+            disabled={uploading || pending}
+            onClick={() => fileRef.current?.click()}
+            style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '8px 13px', cursor: (uploading || pending) ? 'not-allowed' : 'pointer', opacity: (uploading || pending) ? 0.55 : 1 }}
+          >
+            ⬆ {uploading ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
       </div>
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        {/* Controls bar */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-wrap gap-y-2">
-          <div className="flex gap-1.5 flex-wrap flex-1">
-            {allChips.map(t => (
-              <button
-                key={t}
-                onClick={() => setSelectedType(t)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                  selectedType === t
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+
+      {uploadError && <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 8 }}>{uploadError}</p>}
+
+      {/* Plan list */}
+      <div>
+        {deal.plans.length === 0 ? (
+          <div style={{ padding: '28px 0', textAlign: 'center', color: '#cbd5e1', fontSize: 14, borderTop: '1px solid #e7e8ef' }}>
+            No files uploaded yet
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleFile} className="hidden" />
-            <button
-              disabled={uploading || pending}
-              onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-            >
-              <Upload size={12} />
-              {uploading ? 'Uploading…' : isContractor ? 'Upload File' : 'Upload Plan'}
-            </button>
-            {deal.plans.length > 0 && (
-              <button
-                onClick={downloadAll}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Download size={12} /> Download All
-              </button>
-            )}
-          </div>
-        </div>
-
-        {uploadError && <p className="px-4 py-2 text-xs text-red-500 bg-red-50 border-b border-red-100">{uploadError}</p>}
-
-        {/* Viewer */}
-        <div className="bg-gray-50 relative" style={{ minHeight: 380 }}>
-          {currentPlan ? (
-            <>
-              <div className="absolute top-3 left-3 z-10">
-                <span className="bg-white border border-gray-200 shadow-sm rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-700">
-                  {currentPlan.name || currentPlan.planType}
-                </span>
+        ) : (
+          deal.plans.map(plan => {
+            const tag = plan.uploadedByRole === 'CONTRACTOR' ? 'You' : 'Shared'
+            return (
+              <div key={plan.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #e7e8ef', fontSize: 14 }}>
+                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0, flex: 1, minWidth: 0 }}>
+                  <span style={{ marginRight: 6 }}>📎</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {plan.name || plan.planType}
+                  </span>
+                  <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 999, marginLeft: 6, flexShrink: 0 }}>
+                    {tag}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <a
+                    href={plan.fileUrl}
+                    download={plan.name || plan.planType}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '7px 12px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                  >
+                    ⬇ Download
+                  </a>
+                  {canDelete(plan) && (
+                    <button
+                      disabled={pending}
+                      onClick={() => remove(plan.id)}
+                      style={{ color: '#cbd5e1', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0, opacity: pending ? 0.4 : 1 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
-                <button
-                  onClick={() => setZoom(z => Math.max(50, z - 25))}
-                  className="p-1.5 bg-white border border-gray-200 shadow-sm rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <ZoomOut size={13} className="text-gray-600" />
-                </button>
-                <span className="px-2 py-1 bg-white border border-gray-200 shadow-sm rounded-lg text-xs font-semibold text-gray-600 min-w-[44px] text-center">
-                  {zoom}%
-                </span>
-                <button
-                  onClick={() => setZoom(z => Math.min(200, z + 25))}
-                  className="p-1.5 bg-white border border-gray-200 shadow-sm rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <ZoomIn size={13} className="text-gray-600" />
-                </button>
-                <button
-                  onClick={() => window.open(currentPlan.fileUrl, '_blank')}
-                  className="p-1.5 bg-white border border-gray-200 shadow-sm rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Maximize2 size={13} className="text-gray-600" />
-                </button>
-              </div>
+            )
+          })
+        )}
+      </div>
 
-              <div className="overflow-auto" style={{ height: 380 }}>
-                {currentPlan.fileType === 'application/pdf' ? (
-                  <iframe src={currentPlan.fileUrl} style={{ width: `${zoom}%`, minWidth: '100%', height: 380 }} />
-                ) : (
-                  <div className="flex items-start justify-center p-6 min-h-full">
-                    <img
-                      src={currentPlan.fileUrl}
-                      alt={currentPlan.name}
-                      style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center', maxWidth: '100%' }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {canDelete(currentPlan) && (
-                <button
-                  onClick={() => remove(currentPlan.id)}
-                  disabled={pending}
-                  className="absolute bottom-3 left-3 z-10 p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-40"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center" style={{ height: 380 }}>
-              <FileText size={40} className="text-gray-200 mb-3" />
-              <p className="text-sm font-semibold text-gray-400">{selectedType} Preview</p>
-              <p className="text-xs text-gray-300 mt-1">Plan viewer displays here</p>
-            </div>
-          )}
-        </div>
+      <div style={{ fontSize: '12.5px', color: '#64748b', background: '#f8fafc', border: '1px solid #e7e8ef', borderRadius: 9, padding: '10px 12px', marginTop: 12 }}>
+        On the Referral plan you quote from the plans and photos shared here. Upload your own site photos or markups, and download anything to work offline. Need to see it in person? Use Comments to request a site visit.
       </div>
     </div>
   )
@@ -502,120 +418,72 @@ function TakeoffSection({ deal, readOnly }: { deal: Deal; readOnly: boolean }) {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Takeoff & Measurement</h2>
-        <p className="text-sm text-gray-500">Capture quantities and measurements from plans</p>
+      {/* lbl */}
+      <div style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 12 }}>
+        Measurements captured on site
       </div>
-      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <button
-            disabled
-            title="Coming soon"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-purple-600 text-white rounded-lg opacity-50 cursor-not-allowed"
-          >
-            <Sparkles size={14} /> Extract from Plan
-          </button>
-          <button
-            disabled
-            title="Coming soon"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold border border-gray-200 text-gray-500 rounded-lg opacity-50 cursor-not-allowed"
-          >
-            <Upload size={13} /> Upload Measurement Document
-          </button>
-        </div>
 
-        <div className="flex gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5 text-xs text-blue-600">
-          <FileText size={13} className="shrink-0 mt-0.5" />
-          <span>
-            Click &ldquo;Extract from Plan&rdquo; to automatically read measurements from the selected plan,
-            or manually add measurements below.
-          </span>
+      {deal.measurements.length === 0 && !adding ? (
+        <div className="flex flex-col items-center justify-center py-8" style={{ color: '#cbd5e1' }}>
+          <Ruler size={28} className="mb-2" />
+          <p className="text-sm">No measurements yet</p>
         </div>
-
-        {deal.measurements.length === 0 && !adding ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-300">
-            <Ruler size={28} className="mb-2" />
-            <p className="text-sm">No measurements yet</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {deal.measurements.map((m, idx) => (
-              <div key={m.id} className="flex items-center gap-2 border border-gray-100 rounded-lg px-3 py-2.5">
-                <span className="text-xs font-bold text-gray-400 w-6 shrink-0">#{idx + 1}</span>
-                <p className="flex-1 text-sm text-gray-700 min-w-0 truncate">{m.label}</p>
-                <span className="text-sm font-semibold text-gray-900 shrink-0 w-16 text-right">{m.value}</span>
-                <span className="text-xs text-gray-400 shrink-0 w-12">{m.unit}</span>
+      ) : (
+        <div>
+          {deal.measurements.map(m => (
+            <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 14px', border: '1px solid #e7e8ef', borderRadius: 10, marginBottom: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{m.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 14, color: '#334155' }}>{m.value} {m.unit}</span>
                 {!readOnly && (
-                  <button
-                    disabled={pending}
-                    onClick={() => remove(m.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors shrink-0 disabled:opacity-40"
-                  >
+                  <button disabled={pending} onClick={() => remove(m.id)} style={{ color: '#cbd5e1', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: pending ? 0.4 : 1 }}>
                     <Trash2 size={13} />
                   </button>
                 )}
               </div>
-            ))}
+            </div>
+          ))}
 
-            {adding && (
-              <div className="flex items-center gap-2 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2.5">
-                <span className="text-xs font-bold text-gray-400 w-6 shrink-0">#{deal.measurements.length + 1}</span>
-                <input
-                  autoFocus
-                  placeholder="Measurement name"
-                  value={newLabel}
-                  onChange={e => setNewLabel(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addRow()}
-                  className="flex-1 text-sm bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400 min-w-0"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={newValue}
-                  onChange={e => setNewValue(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addRow()}
-                  className="w-20 text-sm bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400 text-right"
-                />
-                <select
-                  value={newUnit}
-                  onChange={e => setNewUnit(e.target.value)}
-                  className="text-xs bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none"
-                >
-                  {UNITS.map(u => <option key={u}>{u}</option>)}
-                </select>
-                <button
-                  disabled={pending || !newLabel.trim() || !newValue}
-                  onClick={addRow}
-                  className="text-blue-600 hover:text-blue-700 disabled:opacity-40 shrink-0"
-                >
-                  <CheckCircle size={16} />
-                </button>
-                <button
-                  onClick={() => { setAdding(false); setNewLabel(''); setNewValue('') }}
-                  className="text-gray-400 hover:text-gray-600 shrink-0"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          {adding && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
+              <input
+                autoFocus placeholder="Measurement name" value={newLabel}
+                onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRow()}
+                style={{ flex: 1, fontSize: 14, background: '#fff', border: '1px solid #e7e8ef', borderRadius: 7, padding: '6px 10px', outline: 'none', minWidth: 0 }}
+              />
+              <input
+                type="number" min={0} placeholder="0" value={newValue}
+                onChange={e => setNewValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRow()}
+                style={{ width: 80, fontSize: 14, background: '#fff', border: '1px solid #e7e8ef', borderRadius: 7, padding: '6px 10px', outline: 'none', textAlign: 'right' }}
+              />
+              <select value={newUnit} onChange={e => setNewUnit(e.target.value)} style={{ fontSize: 13, background: '#fff', border: '1px solid #e7e8ef', borderRadius: 7, padding: '6px 8px', outline: 'none' }}>
+                {UNITS.map(u => <option key={u}>{u}</option>)}
+              </select>
+              <button disabled={pending || !newLabel.trim() || !newValue} onClick={addRow} style={{ color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: (pending || !newLabel.trim() || !newValue) ? 0.4 : 1 }}>
+                <CheckCircle size={16} />
+              </button>
+              <button onClick={() => { setAdding(false); setNewLabel(''); setNewValue('') }} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
-        {!readOnly && !adding && (
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
-          >
-            <Plus size={14} /> Add Measurement
-          </button>
-        )}
+      {!readOnly && !adding && (
+        <button onClick={() => setAdding(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginBottom: 12 }}>
+          <Plus size={14} /> Add Measurement
+        </button>
+      )}
+
+      <div style={{ fontSize: '12.5px', color: '#64748b', background: '#f8fafc', border: '1px solid #e7e8ef', borderRadius: 9, padding: '10px 12px', marginTop: 12 }}>
+        Automatic takeoff from plans is part of Direct Outreach. On Referral, use these measurements (or your own from a site visit) to price your line items.
       </div>
     </div>
   )
 }
 
-// ── Questions ─────────────────────────────────────────────────────────────────
+// ── Comments ──────────────────────────────────────────────────────────────────
 
 function QuestionsSection({ deal, currentUserId }: { deal: Deal; currentUserId: string }) {
   const [pending, startTransition] = useTransition()
@@ -633,67 +501,223 @@ function QuestionsSection({ deal, currentUserId }: { deal: Deal; currentUserId: 
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Questions</h2>
-        <p className="text-sm text-gray-500">Ask the project team about plans or scope before quoting</p>
-      </div>
-      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        {deal.comments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-300">
-            <MessageSquare size={28} className="mb-2" />
-            <p className="text-sm">No questions yet</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {deal.comments.map(c => {
-              const isMe = c.author.id === currentUserId
-              return (
-                <div key={c.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isMe ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                    {authorInitials(c.author)}
-                  </div>
-                  <div className={`flex-1 max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                    <div className={`flex items-baseline gap-2 mb-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                      <span className="text-xs font-bold text-gray-700">
-                        {isMe ? 'You' : authorDisplayName(c.author)}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(c.createdAt).toLocaleDateString('en-CA', {
-                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <div className={`rounded-xl px-3 py-2 text-sm text-gray-700 ${isMe ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50 border border-gray-100'}`}>
-                      {c.content}
-                    </div>
-                  </div>
+      {/* thread messages */}
+      {deal.comments.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 0', color: '#cbd5e1' }}>
+          <MessageSquare size={28} style={{ marginBottom: 8 }} />
+          <p style={{ fontSize: 14, margin: 0 }}>No messages yet</p>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 4 }}>
+          {deal.comments.map(c => {
+            const isMe = c.author.id === currentUserId
+            return (
+              <div key={c.id} style={{ marginBottom: 12, textAlign: isMe ? 'right' : 'left' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 3 }}>
+                  {isMe ? 'You' : authorDisplayName(c.author)}
                 </div>
-              )
-            })}
-          </div>
-        )}
+                <span style={{ display: 'inline-block', background: isMe ? '#dbeafe' : '#f1f5f9', padding: '9px 13px', borderRadius: 12, fontSize: '13.5px', color: '#0f172a' }}>
+                  {c.content}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
-        {currentUserId && (
-          <div className="space-y-2 pt-2 border-t border-gray-100">
-            <textarea
-              rows={3}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder="Ask a question about the plans or project scope..."
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 resize-none"
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+      {currentUserId && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <input
+            value={text} onChange={e => setText(e.target.value)}
+            placeholder="Ask the team about plans or scope…"
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+            style={{ flex: 1, border: '1px solid #e7e8ef', borderRadius: 10, padding: '11px 12px', fontFamily: 'inherit', fontSize: '13.5px', outline: 'none' }}
+          />
+          <button
+            disabled={!text.trim() || pending} onClick={submit}
+            style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '11px 18px', cursor: (!text.trim() || pending) ? 'not-allowed' : 'pointer', opacity: (!text.trim() || pending) ? 0.45 : 1, whiteSpace: 'nowrap' }}
+          >
+            Send
+          </button>
+        </div>
+      )}
+
+      <div style={{ fontSize: '12.5px', color: '#64748b', background: '#f8fafc', border: '1px solid #e7e8ef', borderRadius: 9, padding: '10px 12px', marginTop: 12 }}>
+        Messages here go to the Construction Market team — they coordinate everything with the builder for you.
+      </div>
+    </div>
+  )
+}
+
+// ── Quote Preview (inline document) ──────────────────────────────────────────
+
+function QuotePreviewInline({
+  items, notes, subtotal, tax, total, taxRate, deal, job, companyName, companyLogoUrl, isContractor, quoteVersion, companyCredentials,
+}: {
+  items: LineItem[]
+  notes: string
+  subtotal: number
+  tax: number
+  total: number
+  taxRate: number
+  deal: Deal
+  job?: JobInfo | null
+  companyName?: string | null
+  companyLogoUrl?: string | null
+  isContractor?: boolean
+  quoteVersion?: number
+  companyCredentials?: string | null
+}) {
+  const visibleItems = items.filter(i => i.description.trim())
+  const initials = companyName
+    ? companyName.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase()
+    : 'CM'
+  const validUntil = new Date()
+  validUntil.setDate(validUntil.getDate() + 30)
+  const validUntilStr = validUntil.toLocaleDateString('en-CA')
+
+  return (
+    <div className="border border-gray-200 rounded-2xl p-8 bg-white">
+      {/* Header */}
+      <div className="flex justify-between items-start gap-6">
+        <div className="flex items-center gap-3.5">
+          {companyLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={companyLogoUrl}
+              alt={companyName ?? 'Company logo'}
+              className="w-14 h-14 rounded-xl object-contain flex-shrink-0 border border-gray-100"
             />
-            <div className="flex justify-end">
-              <button
-                disabled={!text.trim() || pending}
-                onClick={submit}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-40 transition-colors"
-              >
-                <Send size={13} /> Post Question
-              </button>
+          ) : (
+            <div
+              className="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-xl text-white select-none"
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+            >
+              {initials}
             </div>
+          )}
+          <div>
+            <div className="text-lg font-black text-gray-900 leading-tight">{companyName || 'Your Company'}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{companyCredentials || 'Issued through Construction Market'}</div>
           </div>
-        )}
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div
+            className="text-4xl font-black leading-none"
+            style={{ background: 'linear-gradient(120deg, #2563eb, #4f46e5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+          >
+            QUOTE
+          </div>
+        </div>
+      </div>
+
+      {/* Gradient rule */}
+      <div
+        className="h-[3px] rounded-full my-6"
+        style={{ background: 'linear-gradient(90deg, #4f46e5, #7c3aed 60%, transparent)' }}
+      />
+
+      {/* Meta — Quote number / Issue date / Valid until */}
+      <div className="grid grid-cols-3 gap-6 mb-5">
+        <div>
+          <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1.5">Quote number</div>
+          <div className="text-sm font-bold text-gray-900">{quoteVersion != null ? dealQuoteNo(deal.id, quoteVersion) : '—'}</div>
+        </div>
+        <div>
+          <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1.5">Issue date</div>
+          <div className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString('en-CA')}</div>
+        </div>
+        <div>
+          <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1.5">Valid until</div>
+          <div className="text-sm font-bold text-gray-900">{validUntilStr}</div>
+        </div>
+      </div>
+
+      {/* Client & project block */}
+      <div className="mb-7">
+        <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-2">Client &amp; project</div>
+        <p className="text-sm text-gray-800 mb-1">
+          <strong>Prepared for:</strong>{' '}
+          {isContractor ? 'Project owner — via Construction Market' : (deal.clientName || 'Valued Client')}
+        </p>
+        <p className="text-sm text-gray-800 mb-1">
+          <strong>Project address:</strong> {deal.lead.address}
+        </p>
+        <p className="text-sm text-gray-800 mb-0">
+          <strong>Trade:</strong> {job?.serviceType || job?.contractorType || '—'}
+        </p>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ minWidth: 480 }}>
+          <thead>
+            <tr>
+              <th className="text-left text-[10px] font-bold tracking-widest text-gray-400 uppercase pb-2.5 px-3 border-b border-gray-200">Description</th>
+              <th className="text-right text-[10px] font-bold tracking-widest text-gray-400 uppercase pb-2.5 px-3 border-b border-gray-200 w-16">Qty</th>
+              <th className="text-right text-[10px] font-bold tracking-widest text-gray-400 uppercase pb-2.5 px-3 border-b border-gray-200 w-20">Unit</th>
+              <th className="text-right text-[10px] font-bold tracking-widest text-gray-400 uppercase pb-2.5 px-3 border-b border-gray-200 w-28">Unit price</th>
+              <th className="text-right text-[10px] font-bold tracking-widest text-gray-400 uppercase pb-2.5 px-3 border-b border-gray-200 w-28">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleItems.length === 0 ? (
+              <tr><td colSpan={5} className="py-6 text-center text-sm text-gray-300 px-3">No line items yet</td></tr>
+            ) : (
+              visibleItems.map((item, i) => (
+                <tr key={i}>
+                  <td className="py-3.5 border-b border-gray-100 text-sm font-semibold px-3">{item.description}</td>
+                  <td className="py-3.5 border-b border-gray-100 text-sm text-right px-3">{item.quantity}</td>
+                  <td className="py-3.5 border-b border-gray-100 text-sm text-right text-gray-400 px-3">{item.unit || 'ea'}</td>
+                  <td className="py-3.5 border-b border-gray-100 text-sm text-right px-3">{fmtMoney(item.unitPrice)}</td>
+                  <td className="py-3.5 border-b border-gray-100 text-sm text-right font-bold px-3">{fmtMoney(item.quantity * item.unitPrice)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals */}
+      <div className="flex justify-end mt-4">
+        <div className="w-72">
+          <div className="flex justify-between py-1.5 px-3 text-sm">
+            <span className="text-gray-500">Subtotal</span>
+            <span>{fmtMoney(subtotal)}</span>
+          </div>
+          <div className="flex justify-between py-1.5 px-3 text-sm">
+            <span className="text-gray-500">HST ({taxRate}%)</span>
+            <span>{fmtMoney(tax)}</span>
+          </div>
+          <div className="flex justify-between items-baseline mt-1.5 pt-3 px-3 border-t-2 border-gray-200">
+            <span className="font-black text-sm">Total</span>
+            <span
+              className="text-2xl font-black"
+              style={{ background: 'linear-gradient(120deg, #4f46e5, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+            >
+              {fmtMoney(total)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      {notes && (
+        <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+          <div className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1.5">Notes</div>
+          <p className="text-sm text-gray-700">{notes}</p>
+        </div>
+      )}
+
+      {/* Terms */}
+      <div className="mt-6 text-xs text-gray-400 leading-relaxed border-t border-gray-100 pt-4">
+        This quote is valid for 30 days from the issue date. Payment terms: Net 30 days upon completion. All work performed in accordance with industry standards and applicable building codes.
+      </div>
+
+      {/* Footer */}
+      <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between text-[11px] text-gray-400">
+        <span>Thank you for the opportunity to quote your project.</span>
+        <span className="font-semibold">constructionmarket.ca</span>
       </div>
     </div>
   )
@@ -701,263 +725,423 @@ function QuestionsSection({ deal, currentUserId }: { deal: Deal; currentUserId: 
 
 // ── Build Quote ───────────────────────────────────────────────────────────────
 
-function BuildQuoteSection({ deal, isContractor }: { deal: Deal; isContractor: boolean }) {
+function BuildQuoteSection({
+  deal, isContractor, job, companyName, companyLogoUrl, companyCredentials,
+}: {
+  deal: Deal
+  isContractor: boolean
+  job?: JobInfo | null
+  companyName?: string | null
+  companyLogoUrl?: string | null
+  companyCredentials?: string | null
+}) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [items, setItems] = useState<LineItem[]>([{ description: '', quantity: 1, unitPrice: 0 }])
-  const [notes, setNotes] = useState('')
-  const taxRate = 13
 
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const tax = (subtotal * taxRate) / 100
+  const draftQuote = deal.quotes.find(q => q.status === 'draft')
+
+  // Contractor mode: 'build' | 'preview' | 'issued'
+  // Sales mode: always 'build' (form + quote list)
+  const [mode, setMode] = useState<'build' | 'preview' | 'issued'>(() => {
+    if (!isContractor) return 'build'
+    if (draftQuote) return 'build'
+    if (deal.quotes.length > 0) return 'issued'
+    return 'build'
+  })
+
+  // Form state — initialized from draft if one exists
+  const [items, setItems] = useState<LineItem[]>(() => {
+    if (draftQuote) {
+      const li = lineItemsOf(draftQuote)
+      if (li.length > 0) return li.map(i => ({ ...i, unit: (i as LineItem & { unit?: string }).unit ?? 'ea' }))
+    }
+    return [{ description: '', quantity: 1, unit: 'ea', unitPrice: 0 }]
+  })
+  const [notes, setNotes] = useState(() => draftQuote?.notes ?? '')
+  const [taxRate, setTaxRate] = useState(() => {
+    if (draftQuote?.subtotal && draftQuote?.tax && draftQuote.subtotal > 0) {
+      return Math.round((draftQuote.tax / draftQuote.subtotal) * 100)
+    }
+    return 13
+  })
+
+  // For sales: separate editingId to track which quote is being edited
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const validItems = items.filter(i => i.description.trim())
+  const subtotal = validItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  const tax = Math.round(subtotal * taxRate) / 100
   const total = subtotal + tax
 
   function openEdit(q: Quote) {
-    try { setItems((q.lineItems as LineItem[]) ?? []) } catch { setItems([]) }
+    const li = lineItemsOf(q)
+    setItems(li.length > 0 ? li.map(i => ({ ...i, unit: (i as LineItem & { unit?: string }).unit ?? 'ea' })) : [{ description: '', quantity: 1, unit: 'ea', unitPrice: 0 }])
     setNotes(q.notes ?? '')
     setEditingId(q.id)
+    if (isContractor) setMode('build')
   }
 
   function resetForm() {
-    setItems([{ description: '', quantity: 1, unitPrice: 0 }])
+    setItems([{ description: '', quantity: 1, unit: 'ea', unitPrice: 0 }])
     setNotes('')
     setEditingId(null)
   }
 
-  function save(doSubmit: boolean, generatePdf = false) {
-    const valid = items.filter(i => i.description.trim())
-    if (valid.length === 0) { alert('Add at least one line item.'); return }
+  function save(doSubmit: boolean) {
+    if (validItems.length === 0) { alert('Add at least one line item.'); return }
+    // Determine which quote to update: for contractor use draftQuote.id, for sales use editingId state
+    const currentEditingId = isContractor
+      ? (deal.quotes.find(q => q.status === 'draft')?.id ?? null)
+      : editingId
     startTransition(async () => {
-      const payload = { lineItems: valid, subtotal, tax, total, notes: notes || undefined, submit: doSubmit, generatePdf }
-      if (editingId) { await updateQuote(editingId, deal.id, payload) } else { await createQuote(deal.id, payload) }
+      const payload = { lineItems: validItems, subtotal, tax, total, notes: notes || undefined, submit: doSubmit }
+      if (currentEditingId) { await updateQuote(currentEditingId, deal.id, payload) }
+      else { await createQuote(deal.id, payload) }
       router.refresh()
-      resetForm()
+      if (doSubmit) {
+        if (isContractor) { setMode('issued') }
+        else { resetForm() }
+      }
     })
   }
 
+  // ── Contractor: Issued state ───────────────────────────────────────────────
+  if (isContractor && mode === 'issued') {
+    return (
+      <div>
+        <div style={{ fontSize: '12.5px', color: '#64748b', background: '#f8fafc', border: '1px solid #e7e8ef', borderRadius: 9, padding: '10px 12px', marginBottom: 16 }}>
+          ✓ Your quote is issued and sent. It&apos;s locked and now sits under <strong style={{ color: '#0f172a' }}>Jobs → Completed</strong>. Need to change something? Start a new version.
+        </div>
+        <button
+          onClick={() => { resetForm(); setMode('build') }}
+          style={{ background: '#2563eb', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+        >
+          <Plus size={14} /> New version
+        </button>
+      </div>
+    )
+  }
+
+  // ── Contractor: Preview state ──────────────────────────────────────────────
+  if (isContractor && mode === 'preview') {
+    const submittedCount = deal.quotes.filter(q => q.status !== 'draft').length
+    const previewVersion = draftQuote?.version ?? (submittedCount + 1)
+    return (
+      <div className="space-y-4">
+        <QuotePreviewInline
+          items={items} notes={notes} subtotal={subtotal} tax={tax} total={total}
+          taxRate={taxRate} deal={deal} job={job} companyName={companyName}
+          companyLogoUrl={companyLogoUrl} isContractor={isContractor}
+          quoteVersion={previewVersion} companyCredentials={companyCredentials}
+        />
+        <p style={{ fontSize: '12.5px', color: '#64748b', background: '#f8fafc', border: '1px solid #e7e8ef', borderRadius: 9, padding: '10px 12px', marginTop: 14 }}>
+          Once you submit, this quote is issued and sent — it can&apos;t be edited. To change anything afterward you&apos;ll create a new version.
+        </p>
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setMode('build')}
+            style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', cursor: 'pointer' }}
+          >
+            ← Back to edit
+          </button>
+          <button
+            disabled={pending || validItems.length === 0}
+            onClick={() => save(true)}
+            style={{ background: '#16a34a', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, cursor: (pending || validItems.length === 0) ? 'not-allowed' : 'pointer', opacity: (pending || validItems.length === 0) ? 0.55 : 1 }}
+          >
+            {pending ? 'Submitting…' : '➤ Submit quote'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Build form (contractor build mode OR sales) ────────────────────────────
   return (
-    <div>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Build Quote</h2>
-        <p className="text-sm text-gray-500">Create your detailed pricing proposal</p>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-        {editingId && (
-          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-            <span className="text-xs font-semibold text-amber-700">Editing quote</span>
-            <button onClick={resetForm} className="text-xs text-gray-400 hover:text-gray-600">Cancel Edit</button>
+    <div className="space-y-4">
+      {/* AI Quick Fill (placeholder) */}
+      {isContractor && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-base font-black text-gray-900">⚡ AI Quick Fill</h3>
+            <span className="text-[10px] font-bold tracking-wider text-teal-600 bg-teal-50 px-2.5 py-0.5 rounded-full uppercase">Assist</span>
           </div>
-        )}
-
-        {/* Line Items */}
-        <div className="border-b border-gray-200">
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-sm font-bold text-gray-900">Line Items</span>
-            <button
-              onClick={() => setItems(p => [...p, { description: '', quantity: 1, unitPrice: 0 }])}
-              className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-              <Plus size={13} /> Add Item
-            </button>
+          <div style={{ background: '#f8fffd', border: '1px solid #bdf0e6', borderRadius: 13, padding: '16px 18px', marginBottom: 20 }}>
+            <p style={{ margin: '0 0 10px', fontSize: '12.5px', color: '#0f766e' }}>
+              Paste or tweak the scope, and the assistant drafts your line items and rough quantities. <strong>You set your own prices.</strong>
+            </p>
+            <textarea
+              rows={3}
+              defaultValue={job?.scope ?? ''}
+              placeholder="Describe the scope of work…"
+              className="w-full border border-teal-200 bg-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-400 resize-none"
+            />
+            <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 10 }}>
+              <button
+                disabled
+                title="Coming soon"
+                style={{ background: '#0d9488', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '10px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: 0.55, cursor: 'not-allowed' }}
+              >
+                <Sparkles size={14} /> Draft line items
+              </button>
+              <span style={{ fontSize: '12.5px', color: '#64748b' }}>Adds to the list below — nothing is sent yet.</span>
+            </div>
           </div>
-          <div className="divide-y divide-gray-100">
-            {items.map((item, idx) => (
-              <div key={idx} className="px-4 py-3 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-400 w-6 shrink-0">#{idx + 1}</span>
-                  <input
-                    placeholder="Item description"
-                    value={item.description}
-                    onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))}
-                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-400 min-w-0"
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, quantity: Number(e.target.value) } : it))}
-                    className="w-14 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.unitPrice}
-                    onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, unitPrice: Number(e.target.value) } : it))}
-                    className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 text-right"
-                  />
-                  <button
-                    onClick={() => setItems(p => p.filter((_, i) => i !== idx))}
-                    className="text-red-300 hover:text-red-500 transition-colors shrink-0"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 text-right pr-7">
-                  Line Total: {fmtMoney(item.quantity * item.unitPrice)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Additional Notes */}
-        <div className="px-4 py-4 border-b border-gray-200">
-          <p className="text-sm font-bold text-gray-900 mb-2">Additional Notes</p>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Include warranties, timelines, terms, or other important information..."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
-          />
-        </div>
-
-        {/* Totals */}
-        <div className="px-4 py-4 space-y-2 border-b border-gray-200">
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Subtotal</span><span>{fmtMoney(subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Tax ({taxRate}% HST)</span><span>{fmtMoney(tax)}</span>
-          </div>
-          <div className="flex justify-between text-base font-black text-gray-900 pt-1 border-t border-gray-100">
-            <span>Total</span><span className="text-blue-600">{fmtMoney(total)}</span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 px-4 py-4">
-          <button
-            disabled={pending}
-            onClick={() => save(false)}
-            className="flex-1 py-2.5 text-sm font-bold border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
-          >
-            Save Draft
-          </button>
-          <button
-            disabled={pending}
-            onClick={() => save(false, true)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-          >
-            <FileText size={13} /> {pending ? 'Generating…' : 'Generate Invoice'}
-          </button>
-        </div>
-      </div>
-
-      {deal.quotes.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-300">
-          <p className="text-sm">No quotes yet</p>
         </div>
       )}
 
-      <div className="space-y-4">
-        {deal.quotes.map(q => (
-          <div key={q.id} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-black text-gray-800">Quote v{q.version}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                q.status === 'accepted'       ? 'bg-green-100 text-green-700' :
-                q.status === 'submitted'      ? 'bg-blue-100 text-blue-700' :
-                q.status === 'pending_review' ? 'bg-amber-100 text-amber-700' :
-                'bg-gray-100 text-gray-600'
-              }`}>
-                {q.status === 'pending_review'
-                  ? isContractor ? 'Submitted' : 'Pending Review'
-                  : q.status.charAt(0).toUpperCase() + q.status.slice(1)}
-              </span>
-            </div>
-            {lineItemsOf(q).length > 0 && (
-              <div className="space-y-1">
-                {lineItemsOf(q).map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs text-gray-600">
-                    <span>{item.description} × {item.quantity} @ {fmtMoney(item.unitPrice)}</span>
-                    <span className="shrink-0 ml-2">{fmtMoney(item.quantity * item.unitPrice)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="text-xs text-gray-500 border-t border-gray-100 pt-2 space-y-0.5">
-              <div className="flex justify-between"><span>Subtotal</span><span>{fmtMoney(q.subtotal)}</span></div>
-              <div className="flex justify-between"><span>Tax</span><span>{fmtMoney(q.tax)}</span></div>
-              <div className="flex justify-between font-black text-gray-800"><span>Total</span><span>{fmtMoney(q.total)}</span></div>
-            </div>
-            {q.notes && <p className="text-xs text-gray-400 italic">{q.notes}</p>}
-            {q.pdfUrl && (
-              <a
-                href={q.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700"
-              >
-                <FileText size={12} /> View PDF Invoice
-              </a>
-            )}
-            <div className="flex gap-3 items-center flex-wrap">
-              {(q.status === 'draft' || (!isContractor && (q.status === 'submitted' || q.status === 'pending_review'))) && (
-                <button
-                  disabled={pending}
-                  onClick={() => openEdit(q)}
-                  className="text-xs font-bold text-blue-600 hover:underline disabled:opacity-40"
-                >
-                  Edit
-                </button>
-              )}
-              {(q.status === 'draft' || (!isContractor && (q.status === 'pending_review' || q.status === 'submitted'))) && (
-                <button
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      await updateQuote(q.id, deal.id, {
-                        lineItems: lineItemsOf(q),
-                        subtotal: q.subtotal ?? 0,
-                        tax: q.tax ?? 0,
-                        total: q.total ?? 0,
-                        notes: q.notes ?? undefined,
-                        submit: true,
-                      })
-                      router.refresh()
-                    })
-                  }}
-                  className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-                >
-                  {isContractor ? 'Submit to Sales' : 'Send to Client'}
-                </button>
-              )}
-              {(q.status === 'submitted' || q.status === 'pending_review') && !isContractor && (
-                <button
-                  disabled={pending}
-                  onClick={() => {
-                    if (!confirm('Mark this quote as accepted? The total will be written to Deal Info.')) return
-                    startTransition(async () => { await acceptQuote(q.id, deal.id); router.refresh() })
-                  }}
-                  className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
-                >
-                  Accept Quote
-                </button>
-              )}
-              {q.status !== 'accepted' && (
-                <button
-                  disabled={pending}
-                  onClick={() => {
-                    if (!confirm('Delete this quote?')) return
-                    startTransition(async () => { await deleteQuote(q.id, deal.id); router.refresh() })
-                  }}
-                  className="ml-auto text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
-            </div>
+      {/* Sales: editing indicator */}
+      {!isContractor && editingId && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+          <span className="text-xs font-semibold text-amber-700">Editing quote</span>
+          <button onClick={resetForm} className="text-xs text-gray-400 hover:text-gray-600">Cancel Edit</button>
+        </div>
+      )}
+
+      {/* Line Items */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <span className="text-sm font-black text-gray-900">Line items</span>
+          <button
+            onClick={() => setItems(p => [...p, { description: '', quantity: 1, unit: 'ea', unitPrice: 0 }])}
+            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            <Plus size={13} /> Add item
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          {/* Header row */}
+          <div className="hidden sm:grid px-4 py-2 border-b border-gray-100 text-[10px] font-bold tracking-widest text-gray-400 uppercase"
+               style={{ gridTemplateColumns: '30px 1fr 80px 86px 110px 96px 32px', gap: '8px' }}>
+            <span></span>
+            <span>Description</span>
+            <span>Unit</span>
+            <span className="text-right">Qty</span>
+            <span className="text-right">Unit price</span>
+            <span className="text-right">Total</span>
+            <span></span>
           </div>
-        ))}
+
+          {items.length === 0 ? (
+            <div className="py-6 text-center text-sm text-gray-300">No items yet — add one below.</div>
+          ) : (
+            items.map((item, idx) => (
+              <div
+                key={idx}
+                className="px-4 py-2.5 border-b border-gray-100 grid items-center"
+                style={{ gridTemplateColumns: '30px 1fr 80px 86px 110px 96px 32px', gap: '8px' }}
+              >
+                <span className="text-xs font-bold text-gray-400 text-center">{idx + 1}</span>
+                <input
+                  placeholder="Item description"
+                  value={item.description}
+                  onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))}
+                  className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-400 min-w-0 w-full"
+                />
+                <select
+                  value={item.unit}
+                  onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, unit: e.target.value } : it))}
+                  className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 w-full"
+                >
+                  {LINE_ITEM_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <input
+                  type="number" min={1} value={item.quantity}
+                  onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, quantity: Number(e.target.value) } : it))}
+                  className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 text-right w-full"
+                />
+                <input
+                  type="number" min={0} value={item.unitPrice}
+                  onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, unitPrice: Number(e.target.value) } : it))}
+                  className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 text-right w-full"
+                />
+                <span className="text-sm font-semibold text-gray-700 text-right whitespace-nowrap">
+                  {fmtMoney(item.quantity * item.unitPrice)}
+                </span>
+                <button
+                  onClick={() => setItems(p => p.filter((_, i) => i !== idx))}
+                  className="text-red-300 hover:text-red-500 transition-colors flex items-center justify-center"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
+      {/* Notes + Totals */}
+      <div className="flex gap-6 flex-wrap sm:flex-nowrap">
+        <div className="flex-1 min-w-[200px]">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Notes (optional)</p>
+          <textarea
+            value={notes} onChange={e => setNotes(e.target.value)} rows={4}
+            placeholder="Warranties, timelines, exclusions, terms…"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none"
+          />
+        </div>
+        <div className="w-full sm:w-72 shrink-0">
+          <div className="flex justify-between py-2 px-3 text-sm">
+            <span className="text-gray-500">Subtotal</span>
+            <span className="font-semibold">{fmtMoney(subtotal)}</span>
+          </div>
+          <div className="flex items-center gap-2 py-2 px-3 text-sm text-gray-500">
+            <span>Tax %</span>
+            <input
+              type="number" min={0} max={50} value={taxRate}
+              onChange={e => setTaxRate(Number(e.target.value))}
+              className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:border-blue-400"
+            />
+            <span>HST</span>
+          </div>
+          <div className="flex justify-between py-2 px-3 text-sm">
+            <span className="text-gray-500">Tax ({taxRate}%)</span>
+            <span className="font-semibold">{fmtMoney(tax)}</span>
+          </div>
+          <div className="flex justify-between items-baseline mt-1 pt-3 px-3 border-t-2 border-gray-200">
+            <span className="font-black text-sm">Total</span>
+            <span className="text-xl font-black text-blue-700">{fmtMoney(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 12, marginTop: 22, flexWrap: 'wrap' }}>
+        <button
+          disabled={pending}
+          onClick={() => save(false)}
+          style={{ background: '#fff', color: '#0f172a', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, cursor: pending ? 'not-allowed' : 'pointer', opacity: pending ? 0.55 : 1 }}
+        >
+          Save draft
+        </button>
+
+        {isContractor ? (
+          <button
+            disabled={pending || validItems.length === 0}
+            onClick={() => setMode('preview')}
+            style={{ background: '#2563eb', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, cursor: (pending || validItems.length === 0) ? 'not-allowed' : 'pointer', opacity: (pending || validItems.length === 0) ? 0.55 : 1 }}
+          >
+            👁 Preview quote →
+          </button>
+        ) : (
+          <button
+            disabled={pending}
+            onClick={() => save(false)}
+            style={{ background: '#2563eb', color: '#fff', border: 0, borderRadius: 11, fontWeight: 700, fontSize: 14, padding: '13px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, cursor: pending ? 'not-allowed' : 'pointer', opacity: pending ? 0.55 : 1 }}
+          >
+            <FileText size={13} /> {pending ? 'Generating…' : 'Generate Invoice'}
+          </button>
+        )}
+      </div>
+
+      {/* Sales: Quote list */}
+      {!isContractor && deal.quotes.length > 0 && (
+        <div className="space-y-3 pt-2 border-t border-gray-200 mt-2">
+          {deal.quotes.map(q => (
+            <div key={q.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-gray-800">{dealQuoteNo(deal.id, q.version)}</span>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                  q.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                  q.status === 'submitted' ? 'bg-blue-100 text-blue-700' :
+                  q.status === 'pending_review' ? 'bg-amber-100 text-amber-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {q.status === 'pending_review' ? 'Pending Review' : q.status.charAt(0).toUpperCase() + q.status.slice(1)}
+                </span>
+              </div>
+              {lineItemsOf(q).length > 0 && (
+                <div className="space-y-1">
+                  {lineItemsOf(q).map((item, i) => (
+                    <div key={i} className="flex justify-between text-xs text-gray-600">
+                      <span>{item.description} × {item.quantity} @ {fmtMoney(item.unitPrice)}</span>
+                      <span>{fmtMoney(item.quantity * item.unitPrice)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="text-xs text-gray-500 border-t border-gray-100 pt-2 space-y-0.5">
+                <div className="flex justify-between"><span>Subtotal</span><span>{fmtMoney(q.subtotal)}</span></div>
+                <div className="flex justify-between"><span>Tax</span><span>{fmtMoney(q.tax)}</span></div>
+                <div className="flex justify-between font-black text-gray-800"><span>Total</span><span>{fmtMoney(q.total)}</span></div>
+              </div>
+              {q.notes && <p className="text-xs text-gray-400 italic">{q.notes}</p>}
+              {q.pdfUrl && (
+                <a href={q.pdfUrl} download target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                  <FileText size={12} /> Download PDF Invoice
+                </a>
+              )}
+              <div className="flex gap-3 items-center flex-wrap">
+                {(q.status === 'draft' || q.status === 'submitted' || q.status === 'pending_review') && (
+                  <button disabled={pending} onClick={() => openEdit(q)} className="text-xs font-bold text-blue-600 hover:underline disabled:opacity-40">
+                    Edit
+                  </button>
+                )}
+                {(q.status === 'draft' || q.status === 'pending_review' || q.status === 'submitted') && (
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        await updateQuote(q.id, deal.id, {
+                          lineItems: lineItemsOf(q),
+                          subtotal: q.subtotal ?? 0,
+                          tax: q.tax ?? 0,
+                          total: q.total ?? 0,
+                          notes: q.notes ?? undefined,
+                          submit: true,
+                        })
+                        router.refresh()
+                      })
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                  >
+                    Send to Client
+                  </button>
+                )}
+                {(q.status === 'submitted' || q.status === 'pending_review') && (
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      if (!confirm('Mark this quote as accepted?')) return
+                      startTransition(async () => { await acceptQuote(q.id, deal.id); router.refresh() })
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
+                  >
+                    Accept Quote
+                  </button>
+                )}
+                {q.status !== 'accepted' && (
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      if (!confirm('Delete this quote?')) return
+                      startTransition(async () => { await deleteQuote(q.id, deal.id); router.refresh() })
+                    }}
+                    className="ml-auto text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Main Workspace ────────────────────────────────────────────────────────────
+
+type WorkspaceTab = 'plans' | 'takeoff' | 'comments' | 'quote'
+
+const WORKSPACE_TABS: { key: WorkspaceTab; label: string; emoji: string }[] = [
+  { key: 'plans',    label: 'View Plans',        emoji: '📄' },
+  { key: 'takeoff',  label: 'Takeoff & Measure',  emoji: '📐' },
+  { key: 'comments', label: 'Comments',           emoji: '💬' },
+  { key: 'quote',    label: 'Build Quote',        emoji: '➤' },
+]
 
 export function EstimationWorkspace({
   deal,
@@ -966,6 +1150,9 @@ export function EstimationWorkspace({
   role = 'sales',
   readOnly = false,
   job,
+  companyName,
+  companyLogoUrl,
+  companyCredentials,
 }: {
   deal: Deal
   currentUserId: string
@@ -973,73 +1160,110 @@ export function EstimationWorkspace({
   role?: 'sales' | 'contractor'
   readOnly?: boolean
   job?: JobInfo | null
+  companyName?: string | null
+  companyLogoUrl?: string | null
+  companyCredentials?: string | null
 }) {
   const isContractor = role === 'contractor'
   const isSales = !isContractor
 
   const displayTitle = isContractor ? deal.lead.address : (deal.projectName || deal.lead.address)
 
-  // Break out of main's padding (p-4 sm:p-6) and fill its exact height
-  // so the component manages its own internal scroll instead of main scrolling
-  return (
-    <div
-      className="-m-4 sm:-m-6 flex flex-col"
-      style={{ height: 'calc(100dvh - 56px)' }}
-    >
-      {/* ── Fixed top section (white) ── */}
-      <div className="shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Back link */}
-          <Link
-            href={pipelinePath}
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 font-semibold mb-3 transition-colors"
-          >
-            ← {isContractor ? 'Back to Dashboard' : 'Back to Pipeline'}
-          </Link>
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('quote')
 
-          {/* Title row */}
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <h1 className="text-xl font-black text-gray-900 leading-snug">{displayTitle}</h1>
-              <div className="flex items-center gap-2 flex-wrap mt-1">
-                {!isContractor && deal.clientName && (
-                  <span className="text-sm text-gray-500">🏢 {deal.clientName}</span>
-                )}
-                {deal.lead.phase && (
-                  <span className="text-xs font-semibold bg-gray-100 text-gray-600 rounded-full px-2.5 py-0.5">
-                    {deal.lead.phase}
-                  </span>
-                )}
-                {deal.projectType && (
-                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 rounded-full px-2.5 py-0.5">
-                    From {deal.projectType}
-                  </span>
-                )}
-              </div>
-            </div>
-            {!isContractor && (
-              <Link
-                href={`${pipelinePath.replace('/pipeline', '')}/deals/${deal.id}`}
-                className="shrink-0 text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                ← Deal Detail
-              </Link>
+  return (
+    <div>
+      {/* Back button */}
+      <Link
+        href={pipelinePath}
+        style={{ color: '#64748b', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 14, textDecoration: 'none' }}
+        className="hover:text-[#0f172a] transition-colors"
+      >
+        ← {isContractor ? 'Back to jobs' : 'Back to Pipeline'}
+      </Link>
+
+      {/* Job header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 8px', color: '#0f172a' }}>
+            {displayTitle}
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, color: '#64748b', fontSize: 14, flexWrap: 'wrap' }}>
+            <span>📍 {deal.lead.address}</span>
+            {(job?.serviceType || job?.contractorType) && (
+              <span>🏷️ {job.serviceType ?? job.contractorType}</span>
+            )}
+            {!isContractor && deal.clientName && (
+              <span>🏢 {deal.clientName}</span>
             )}
           </div>
-
-          {/* Status cards */}
-          <StatusCards deal={deal} job={job} />
         </div>
+        {isContractor && deal.lead.source === 'referral' && (
+          <span style={{ background: '#eff6ff', color: '#2563eb', fontSize: '12.5px', fontWeight: 600, padding: '6px 12px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            From referral
+          </span>
+        )}
+        {!isContractor && (
+          <Link
+            href={`${pipelinePath.replace('/pipeline', '')}/deals/${deal.id}`}
+            className="shrink-0 text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            ← Deal Detail
+          </Link>
+        )}
       </div>
 
-      {/* ── Scrollable gray section ── */}
-      <div className="flex-1 overflow-y-auto bg-gray-100 px-4 sm:px-6 py-6 pb-24 sm:pb-10">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <JobOverviewSection deal={deal} job={job} isSales={isSales} />
-          <ConstructionPlansSection deal={deal} isSales={isSales} isContractor={isContractor} />
-          <TakeoffSection deal={deal} readOnly={readOnly} />
-          <QuestionsSection deal={deal} currentUserId={currentUserId} />
-          <BuildQuoteSection deal={deal} isContractor={isContractor} />
+      {/* Status cards */}
+      <StatusCards deal={deal} job={job} />
+
+      {/* Job overview */}
+      <JobOverviewSection deal={deal} job={job} isSales={isSales} />
+
+      {/* Workspace tabs */}
+      <div className="flex overflow-x-auto" style={{ gap: 28, borderBottom: '1px solid #e7e8ef', margin: '8px 0 0', padding: '0 4px' }}>
+        {WORKSPACE_TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            style={{
+              padding: '14px 2px',
+              fontSize: '14.5px',
+              fontWeight: 600,
+              color: activeTab === t.key ? '#2563eb' : '#64748b',
+              border: 0,
+              background: 'none',
+              borderBottom: `2px solid ${activeTab === t.key ? '#2563eb' : 'transparent'}`,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              marginBottom: -1,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {t.emoji} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div style={{ paddingTop: 22 }}>
+        <div style={{ background: '#fff', border: '1px solid #e7e8ef', borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,.04),0 10px 30px rgba(15,23,42,.06)' }}>
+          <div style={{ padding: '22px 24px' }}>
+            {activeTab === 'plans' && (
+              <ConstructionPlansSection deal={deal} isSales={isSales} isContractor={isContractor} />
+            )}
+            {activeTab === 'takeoff' && (
+              <TakeoffSection deal={deal} readOnly={readOnly} />
+            )}
+            {activeTab === 'comments' && (
+              <QuestionsSection deal={deal} currentUserId={currentUserId} />
+            )}
+            {activeTab === 'quote' && (
+              <BuildQuoteSection deal={deal} isContractor={isContractor} job={job} companyName={companyName} companyLogoUrl={companyLogoUrl} companyCredentials={companyCredentials} />
+            )}
+          </div>
         </div>
       </div>
     </div>

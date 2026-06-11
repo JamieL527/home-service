@@ -28,7 +28,7 @@ export default async function ContractorEstimationPage({
     where: { leadId: job.leadId },
     orderBy: { createdAt: 'desc' },
     include: {
-      lead: { select: { address: true, phase: true } },
+      lead: { select: { address: true, phase: true, source: true } },
       plans: { orderBy: { createdAt: 'desc' } },
       measurements: { orderBy: { createdAt: 'asc' } },
       comments: {
@@ -56,6 +56,9 @@ export default async function ContractorEstimationPage({
         pipelinePath={`/contractor/jobs/${id}`}
         role="contractor"
         job={jobInfo}
+        companyName={company.name}
+        companyLogoUrl={company.logoUrl}
+        companyCredentials={company.wsibNumber ? `WSIB #${company.wsibNumber} · Insured` : null}
       />
     </>
   )

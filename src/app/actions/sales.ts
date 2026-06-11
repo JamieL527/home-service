@@ -12,7 +12,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
-type LineItem = { description: string; quantity: number; unitPrice: number }
+type LineItem = { description: string; quantity: number; unitPrice: number; unit?: string }
 
 async function generateAndUploadInvoicePdf(
   dealId: string,
@@ -26,14 +26,22 @@ async function generateAndUploadInvoicePdf(
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: dealId },
-      include: {
+      select: {
+        id: true,
+        clientName: true,
+        projectName: true,
         lead: {
-          include: {
-            contacts: true,
+          select: {
+            address: true,
+            contacts: { select: { name: true, email: true }, take: 5 },
             jobs: {
               where: { companyId: { not: null } },
-              include: { company: { select: { name: true, logoUrl: true } } },
               take: 1,
+              select: {
+                serviceType: true,
+                contractorType: true,
+                company: { select: { name: true, logoUrl: true } },
+              },
             },
           },
         },
@@ -41,20 +49,37 @@ async function generateAndUploadInvoicePdf(
     })
     if (!deal) return null
 
-    const company = deal.lead.jobs[0]?.company
+    const job = deal.lead.jobs[0]
+    const company = job?.company
+    const trade = job?.serviceType || job?.contractorType || null
+
+    // Stable 6-digit base derived from dealId (same logic as client-side dealQuoteNo)
+    let h = 0
+    for (let i = 0; i < dealId.length; i++) {
+      h = Math.imul(31, h) + dealId.charCodeAt(i) | 0
+    }
+    const base = (Math.abs(h) % 900000) + 100000
+    const invoiceNumber = `Q-${base}-V${quoteVersion}`
+
+    const today = new Date()
+    const validDate = new Date(today)
+    validDate.setDate(validDate.getDate() + 30)
+    const fmt = (d: Date) => d.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })
+
     const buffer = await generateInvoicePdf({
-      invoiceNumber: `${dealId.slice(0, 8).toUpperCase()}-V${quoteVersion}`,
+      invoiceNumber,
       contractorName: company?.name ?? 'Contractor',
       contractorLogoUrl: company?.logoUrl ?? null,
-      clientName: deal.clientName || deal.lead.contacts[0]?.name || 'Valued Client',
-      projectName: deal.projectName || deal.lead.address,
       projectAddress: deal.lead.address,
+      trade,
       lineItems,
       subtotal,
       tax,
       total,
+      taxRate: subtotal > 0 ? Math.round((tax / subtotal) * 100) : 13,
       notes,
-      date: new Date().toLocaleDateString('en-CA'),
+      issueDate: fmt(today),
+      validUntil: fmt(validDate),
     })
 
     const path = `invoices/${dealId}/v${quoteVersion}.pdf`

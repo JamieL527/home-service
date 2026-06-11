@@ -13,7 +13,7 @@ const ROLE_ROUTES: Record<string, string> = {
   SALES: '/sales',
   MARKETING: '/marketing',
   DATA_COLLECTOR: '/collector',
-  CONTRACTOR: '/contractor/overview',
+  CONTRACTOR: '/contractor/jobs',
 }
 
 export async function login(
@@ -74,7 +74,7 @@ export async function login(
     if (status === 'UNVERIFIED_PROFILE') redirect('/register/business-profile')
     if (status === 'PENDING_APPROVAL') redirect('/register/pending')
     if (status === 'ACTION_REQUIRED') redirect('/register/business-profile')
-    redirect('/contractor/overview')
+    redirect('/contractor/jobs')
   }
 
   if (user.userStatus === 'suspended' || user.userStatus === 'deactivated') {

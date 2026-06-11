@@ -1,282 +1,319 @@
-import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 
-Font.register({
-  family: 'Helvetica',
-  fonts: [],
-})
+const INK    = '#0f172a'
+const MUTED  = '#64748b'
+const SOFT   = '#94a3b8'
+const LINE   = '#e7e8ef'
+const BLUE   = '#2563eb'
+const BLUE_D = '#1d4ed8'
+const GREEN_BG = '#dcfce7'
+const GREEN_FG = '#15803d'
 
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
     fontSize: 10,
-    color: '#1a1a1a',
-    padding: 48,
+    color: INK,
+    paddingTop: 44,
+    paddingBottom: 44,
+    paddingHorizontal: 48,
     backgroundColor: '#ffffff',
   },
+
+  // ── Header (.pvw .ph) ────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 36,
+    gap: 20,
   },
-  logo: {
-    width: 120,
-    height: 48,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: GREEN_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  logoImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     objectFit: 'contain',
   },
-  companyNameText: {
-    fontSize: 18,
+  logoInitials: {
+    color: GREEN_FG,
+    fontSize: 15,
     fontFamily: 'Helvetica-Bold',
-    color: '#1a1a1a',
   },
-  invoiceLabel: {
+  companyName: {                   // .co
+    fontSize: 16,
+    fontFamily: 'Helvetica-Bold',
+    color: INK,
+  },
+  companyMeta: {                   // .cred
+    fontSize: 10,
+    color: MUTED,
+    marginTop: 3,
+  },
+  quoteWord: {                     // .word — gradient approximated with solid blue
     fontSize: 24,
     fontFamily: 'Helvetica-Bold',
-    color: '#4f46e5',
+    color: BLUE,
     textAlign: 'right',
   },
-  invoiceMeta: {
-    textAlign: 'right',
-    color: '#666',
-    marginTop: 4,
-    lineHeight: 1.5,
+
+  // ── Rule (.pvw .rule) ────────────────────────────────────────────────────────
+  rule: {
+    height: 2,
+    backgroundColor: LINE,
+    marginTop: 18,
+    marginBottom: 20,
   },
-  divider: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#4f46e5',
-    marginBottom: 24,
-  },
-  thinDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    marginBottom: 16,
-    marginTop: 16,
-  },
-  billSection: {
+
+  // ── Meta (.pvw .meta) ────────────────────────────────────────────────────────
+  meta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
+    gap: 18,
+    marginBottom: 20,
   },
-  billBlock: {
-    flex: 1,
-  },
-  billLabel: {
-    fontSize: 9,
+  metaBlock: { flex: 1 },
+  metaL: {                         // .pvw .meta .l
+    fontSize: 8,
     fontFamily: 'Helvetica-Bold',
-    color: '#6366f1',
+    color: SOFT,
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  billValue: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#1a1a1a',
-    marginBottom: 2,
-  },
-  billSub: {
-    fontSize: 10,
-    color: '#666',
-    lineHeight: 1.4,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#f5f3ff',
-    borderRadius: 4,
-    padding: '8 12',
+    letterSpacing: 0.8,
     marginBottom: 4,
   },
-  tableHeaderText: {
-    fontSize: 9,
+  metaV: {                         // .pvw .meta .v
+    fontSize: 12,
     fontFamily: 'Helvetica-Bold',
-    color: '#4f46e5',
+    color: INK,
+  },
+
+  // ── Client & project (.pvw .cp) ──────────────────────────────────────────────
+  cp: { marginBottom: 10 },
+  cpL: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: SOFT,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    marginBottom: 5,
+  },
+  cpP: {                           // .pvw .cp p
+    fontSize: 11,
+    color: INK,
+    marginTop: 2,
+  },
+
+  // ── Table ────────────────────────────────────────────────────────────────────
+  tableHead: {
+    flexDirection: 'row',
+    borderBottomWidth: 1.5,
+    borderBottomColor: LINE,
+    paddingBottom: 8,
+    marginTop: 16,
+  },
+  th: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: SOFT,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   tableRow: {
     flexDirection: 'row',
-    padding: '8 12',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: LINE,
+    paddingVertical: 10,
+    alignItems: 'flex-start',
   },
-  colDesc: { flex: 3 },
-  colQty: { flex: 1, textAlign: 'center' },
-  colUnit: { flex: 1.5, textAlign: 'right' },
-  colAmount: { flex: 1.5, textAlign: 'right' },
-  cellText: { fontSize: 10, color: '#374151' },
-  totalsSection: {
-    marginTop: 24,
-    alignItems: 'flex-end',
-  },
-  totalsBox: {
-    width: 220,
-  },
-  totalRow: {
+  colDesc:  { flex: 3 },
+  colQty:   { width: 40, textAlign: 'right' },
+  colUnit:  { width: 56, textAlign: 'right' },
+  colPrice: { width: 76, textAlign: 'right' },
+  colAmt:   { width: 76, textAlign: 'right' },
+  tdDesc:   { fontSize: 10, color: INK },
+  tdMuted:  { fontSize: 10, color: MUTED },
+  tdNormal: { fontSize: 10, color: '#334155' },
+  tdAmt:    { fontSize: 10, fontFamily: 'Helvetica-Bold', color: INK },
+
+  // ── Totals (.pvw .tot / .tline) ──────────────────────────────────────────────
+  totSection: { marginTop: 12, alignItems: 'flex-end' },
+  totBox:     { width: 260 },
+  tline: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
-  totalLabel: { fontSize: 10, color: '#666' },
-  totalValue: { fontSize: 10, color: '#1a1a1a' },
-  grandTotalRow: {
+  tlineL: { fontSize: 12, color: MUTED },
+  tlineV: { fontSize: 12, color: INK },
+  tlineG: {                        // .tline.g
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderTopWidth: 2,
-    borderTopColor: '#4f46e5',
-    marginTop: 4,
-  },
-  grandTotalLabel: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#4f46e5' },
-  grandTotalValue: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#4f46e5' },
-  notes: {
-    marginTop: 32,
-    backgroundColor: '#f9fafb',
-    borderRadius: 6,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#6366f1',
-  },
-  notesLabel: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: '#6366f1',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  notesText: { fontSize: 10, color: '#555', lineHeight: 1.5 },
-  footer: {
-    position: 'absolute',
-    bottom: 32,
-    left: 48,
-    right: 48,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    alignItems: 'center',
+    marginTop: 5,
     paddingTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    borderTopWidth: 2,
+    borderTopColor: LINE,
   },
-  footerText: { fontSize: 9, color: '#aaa' },
+  tlineGL: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: INK },
+  tlineGV: { fontSize: 18, fontFamily: 'Helvetica-Bold', color: BLUE_D },
+
+  // ── Terms / Notes (.pvw .terms) ──────────────────────────────────────────────
+  terms: {
+    marginTop: 20,
+    fontSize: 10,
+    color: MUTED,
+    borderTopWidth: 1,
+    borderTopColor: LINE,
+    paddingTop: 12,
+    lineHeight: 1.5,
+  },
 })
 
 const fmt = (n: number) =>
   '$' + n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-type LineItem = { description: string; quantity: number; unitPrice: number }
+type LineItem = { description: string; quantity: number; unitPrice: number; unit?: string }
 
 export function InvoiceDocument({
   invoiceNumber,
   contractorName,
   contractorLogoUrl,
-  clientName,
-  projectName,
   projectAddress,
+  trade,
   lineItems,
   subtotal,
   tax,
   total,
+  taxRate = 13,
   notes,
-  date,
+  issueDate,
+  validUntil,
 }: {
   invoiceNumber: string
   contractorName: string
   contractorLogoUrl?: string | null
-  clientName: string
-  projectName: string
   projectAddress: string
+  trade?: string | null
   lineItems: LineItem[]
   subtotal: number
   tax: number
   total: number
+  taxRate?: number
   notes?: string | null
-  date: string
+  issueDate: string
+  validUntil: string
 }) {
+  const initials = contractorName
+    .split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase()
+
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Header */}
+      <Page size="LETTER" style={styles.page}>
+
+        {/* Header — .pvw .ph */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerLeft}>
             {contractorLogoUrl ? (
-              <Image src={contractorLogoUrl} style={styles.logo} />
+              <Image src={contractorLogoUrl} style={styles.logoImg} />
             ) : (
-              <Text style={styles.companyNameText}>{contractorName}</Text>
+              <View style={styles.logoBox}>
+                <Text style={styles.logoInitials}>{initials}</Text>
+              </View>
             )}
+            <View>
+              <Text style={styles.companyName}>{contractorName}</Text>
+              <Text style={styles.companyMeta}>Issued through Construction Market · constructionmarket.ca</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.invoiceLabel}>INVOICE</Text>
-            <Text style={styles.invoiceMeta}>#{invoiceNumber}</Text>
-            <Text style={styles.invoiceMeta}>{date}</Text>
+          <Text style={styles.quoteWord}>QUOTE</Text>
+        </View>
+
+        {/* Rule */}
+        <View style={styles.rule} />
+
+        {/* Meta — Quote number / Issue date / Valid until */}
+        <View style={styles.meta}>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaL}>Quote number</Text>
+            <Text style={styles.metaV}>{invoiceNumber}</Text>
+          </View>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaL}>Issue date</Text>
+            <Text style={styles.metaV}>{issueDate}</Text>
+          </View>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaL}>Valid until</Text>
+            <Text style={styles.metaV}>{validUntil}</Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
-
-        {/* Bill To / Project */}
-        <View style={styles.billSection}>
-          <View style={styles.billBlock}>
-            <Text style={styles.billLabel}>Bill To</Text>
-            <Text style={styles.billValue}>{clientName}</Text>
-          </View>
-          <View style={styles.billBlock}>
-            <Text style={styles.billLabel}>Project</Text>
-            <Text style={styles.billValue}>{projectName}</Text>
-            <Text style={styles.billSub}>{projectAddress}</Text>
-          </View>
-          <View style={styles.billBlock}>
-            <Text style={styles.billLabel}>From</Text>
-            <Text style={styles.billValue}>{contractorName}</Text>
-          </View>
+        {/* Client & project — .pvw .cp */}
+        <View style={styles.cp}>
+          <Text style={styles.cpL}>Client &amp; project</Text>
+          <Text style={styles.cpP}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Prepared for:</Text> Project owner — via Construction Market</Text>
+          <Text style={styles.cpP}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Project address:</Text> {projectAddress}</Text>
+          <Text style={styles.cpP}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Trade:</Text> {trade || '—'}</Text>
         </View>
 
         {/* Table */}
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.colDesc]}>Description</Text>
-          <Text style={[styles.tableHeaderText, styles.colQty]}>Qty</Text>
-          <Text style={[styles.tableHeaderText, styles.colUnit]}>Unit Price</Text>
-          <Text style={[styles.tableHeaderText, styles.colAmount]}>Amount</Text>
+        <View style={styles.tableHead}>
+          <Text style={[styles.th, styles.colDesc]}>Description</Text>
+          <Text style={[styles.th, styles.colQty]}>Qty</Text>
+          <Text style={[styles.th, styles.colUnit]}>Unit</Text>
+          <Text style={[styles.th, styles.colPrice]}>Unit price</Text>
+          <Text style={[styles.th, styles.colAmt]}>Amount</Text>
         </View>
-
         {lineItems.map((item, i) => (
           <View key={i} style={styles.tableRow}>
-            <Text style={[styles.cellText, styles.colDesc]}>{item.description}</Text>
-            <Text style={[styles.cellText, styles.colQty]}>{item.quantity}</Text>
-            <Text style={[styles.cellText, styles.colUnit]}>{fmt(item.unitPrice)}</Text>
-            <Text style={[styles.cellText, styles.colAmount]}>{fmt(item.quantity * item.unitPrice)}</Text>
+            <Text style={[styles.tdDesc, styles.colDesc]}>{item.description}</Text>
+            <Text style={[styles.tdNormal, styles.colQty]}>{item.quantity}</Text>
+            <Text style={[styles.tdMuted, styles.colUnit]}>{item.unit || 'ea'}</Text>
+            <Text style={[styles.tdNormal, styles.colPrice]}>{fmt(item.unitPrice)}</Text>
+            <Text style={[styles.tdAmt, styles.colAmt]}>{fmt(item.quantity * item.unitPrice)}</Text>
           </View>
         ))}
 
         {/* Totals */}
-        <View style={styles.totalsSection}>
-          <View style={styles.totalsBox}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>{fmt(subtotal)}</Text>
+        <View style={styles.totSection}>
+          <View style={styles.totBox}>
+            <View style={styles.tline}>
+              <Text style={styles.tlineL}>Subtotal</Text>
+              <Text style={styles.tlineV}>{fmt(subtotal)}</Text>
             </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Tax (HST)</Text>
-              <Text style={styles.totalValue}>{fmt(tax)}</Text>
+            <View style={styles.tline}>
+              <Text style={styles.tlineL}>HST ({taxRate}%)</Text>
+              <Text style={styles.tlineV}>{fmt(tax)}</Text>
             </View>
-            <View style={styles.grandTotalRow}>
-              <Text style={styles.grandTotalLabel}>Total</Text>
-              <Text style={styles.grandTotalValue}>{fmt(total)}</Text>
+            <View style={styles.tlineG}>
+              <Text style={styles.tlineGL}>Total</Text>
+              <Text style={styles.tlineGV}>{fmt(total)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Notes */}
+        {/* Notes + Terms — .pvw .terms */}
         {notes && (
-          <View style={styles.notes}>
-            <Text style={styles.notesLabel}>Notes</Text>
-            <Text style={styles.notesText}>{notes}</Text>
+          <View style={styles.terms}>
+            <Text><Text style={{ fontFamily: 'Helvetica-Bold' }}>Notes: </Text>{notes}</Text>
           </View>
         )}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>{contractorName}</Text>
-          <Text style={styles.footerText}>Thank you for your business.</Text>
+        <View style={[styles.terms, notes ? { borderTopWidth: 0, marginTop: 8 } : {}]}>
+          <Text>This quote is valid for 30 days from the issue date. Payment terms: Net 30 days upon completion. All work performed in accordance with industry standards and applicable building codes.</Text>
         </View>
+
       </Page>
     </Document>
   )

@@ -32,7 +32,7 @@ export default async function ContractorQuotePage({ params }: { params: Promise<
                 orderBy: { createdAt: 'asc' },
               },
               quotes: { orderBy: { version: 'desc' } },
-              lead: { select: { address: true, phase: true } },
+              lead: { select: { address: true, phase: true, source: true } },
             },
           },
         },
@@ -58,6 +58,9 @@ export default async function ContractorQuotePage({ params }: { params: Promise<
       pipelinePath="/contractor/jobs"
       role="contractor"
       job={jobInfo}
+      companyName={company.name}
+      companyLogoUrl={company.logoUrl}
+      companyCredentials={company.wsibNumber ? `WSIB #${company.wsibNumber} · Insured` : null}
     />
   )
 }

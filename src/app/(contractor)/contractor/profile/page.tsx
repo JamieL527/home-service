@@ -2,7 +2,7 @@ import { requireContractorUser } from '@/lib/contractor'
 import ProfileForm from './profile-form'
 
 export default async function ProfilePage() {
-  const { company } = await requireContractorUser()
+  const { company, email } = await requireContractorUser()
 
   return (
     <ProfileForm
@@ -20,6 +20,9 @@ export default async function ProfilePage() {
         website: company.website,
         address: company.address,
         logoUrl: company.logoUrl,
+        registrationType: company.registrationType,
+        termsAcceptedAt: company.termsAcceptedAt,
+        accountEmail: email,
       }}
     />
   )

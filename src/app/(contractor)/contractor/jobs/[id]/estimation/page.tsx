@@ -21,7 +21,7 @@ export default async function ContractorEstimationPage({
   })
   if (!job) notFound()
 
-  const ACTIVE_STATUSES = ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED']
+  const ACTIVE_STATUSES = ['OFFER_SENT', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED']
   if (!ACTIVE_STATUSES.includes(job.status as string)) notFound()
 
   const deal = await prisma.deal.findFirst({
@@ -53,7 +53,7 @@ export default async function ContractorEstimationPage({
       <EstimationWorkspace
         deal={deal}
         currentUserId={currentUser?.id ?? ''}
-        pipelinePath={`/contractor/jobs/${id}`}
+        pipelinePath="/contractor/jobs"
         role="contractor"
         job={jobInfo}
         companyName={company.name}

@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { requireContractorUser } from '@/lib/contractor'
 import { prisma } from '@/lib/prisma'
-import { OfferActions } from './offer-actions'
 import { QuoteDownloadButton } from './quote-download-button'
 
 function dealQuoteNo(dealId: string, version: number): string {
@@ -23,12 +22,6 @@ const PHASE_LABELS: Record<string, string> = {
   P3: 'Phase 3', P4: 'Phase 4', P5: 'Phase 5', MLS: 'MLS',
 }
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  ASSIGNED:    { label: 'Assigned',    color: 'bg-blue-100 text-blue-700' },
-  IN_PROGRESS: { label: 'In Progress', color: 'bg-amber-100 text-amber-700' },
-  COMPLETED:   { label: 'Completed',   color: 'bg-green-100 text-green-700' },
-  VERIFIED:    { label: 'Verified',    color: 'bg-emerald-100 text-emerald-700' },
-}
 
 function formatPrice(job: {
   priceType: string | null; priceFixed: number | null
@@ -61,12 +54,11 @@ export default async function ContractorJobsPage({
   const { tab: rawTab } = await searchParams
   const tab: Tab = rawTab === 'active' ? 'active' : rawTab === 'completed' ? 'completed' : 'offers'
 
-  // Fetch all referral OFFER_SENT jobs with their latest quote status for classification
-  const allReferralOfferJobs = await prisma.job.findMany({
+  // Fetch all OFFER_SENT jobs with their quote status for tab classification
+  const allOfferSentJobs = await prisma.job.findMany({
     where: {
       companyId: company.id,
       status: { in: ['OFFER_SENT'] as never[] },
-      lead: { source: 'referral' },
     },
     include: {
       lead: {
@@ -100,7 +92,7 @@ export default async function ContractorJobsPage({
     orderBy: { createdAt: 'desc' },
   })
 
-  function classifyReferralJob(job: typeof allReferralOfferJobs[number]) {
+  function classifyOfferSentJob(job: typeof allOfferSentJobs[number]) {
     const quotes = job.lead.deals[0]?.quotes ?? []
     const hasDraft = quotes.some(q => q.status === 'draft')
     const hasSubmitted = quotes.some(q => ['pending_review', 'submitted', 'accepted'].includes(q.status))
@@ -109,52 +101,74 @@ export default async function ContractorJobsPage({
     return 'offers'
   }
 
-  const referralByTab = {
-    offers: allReferralOfferJobs.filter(j => classifyReferralJob(j) === 'offers'),
-    active: allReferralOfferJobs.filter(j => classifyReferralJob(j) === 'active'),
-    completed: allReferralOfferJobs.filter(j => classifyReferralJob(j) === 'completed'),
+  const offerSentByTab = {
+    offers:    allOfferSentJobs.filter(j => classifyOfferSentJob(j) === 'offers'),
+    active:    allOfferSentJobs.filter(j => classifyOfferSentJob(j) === 'active'),
+    completed: allOfferSentJobs.filter(j => classifyOfferSentJob(j) === 'completed'),
   }
 
-  const [regularOfferCount, regularActiveCount, regularCompletedCount] = await Promise.all([
-    prisma.jobOffer.count({
-      where: {
-        companyId: company.id,
-        status: 'pending',
-        job: { status: { in: ['PENDING', 'READY', 'OFFER_SENT'] as never[] }, lead: { source: { not: 'referral' } } },
-      },
-    }),
+  const draftFilter     = { lead: { deals: { some: { quotes: { some: { status: 'draft' } } } } } }
+  const submittedFilter = { lead: { deals: { some: { quotes: { some: { status: { in: ['pending_review', 'submitted', 'accepted'] } } } } } } }
+  const noQuoteFilter   = { lead: { deals: { none: { quotes: { some: {} } } } } }
+
+  const [regularActiveCount, regularCompletedCount, assignedSubmittedCount, assignedNoQuoteCount] = await Promise.all([
     prisma.job.count({
-      where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] } },
+      where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] }, ...draftFilter },
     }),
     prisma.job.count({
       where: { companyId: company.id, status: { in: ['COMPLETED', 'VERIFIED'] as never[] } },
     }),
+    prisma.job.count({
+      where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] }, ...submittedFilter },
+    }),
+    prisma.job.count({
+      where: { companyId: company.id, status: { in: ['ASSIGNED'] as never[] }, ...noQuoteFilter },
+    }),
   ])
 
-  const offerCount = regularOfferCount + referralByTab.offers.length
-  const activeCount = regularActiveCount + referralByTab.active.length
-  const completedCount = regularCompletedCount + referralByTab.completed.length
-
-  const pendingOffers = tab === 'offers'
-    ? await prisma.jobOffer.findMany({
-        where: {
-          companyId: company.id,
-          status: 'pending',
-          job: { status: { in: ['PENDING', 'READY', 'OFFER_SENT'] as never[] }, lead: { source: { not: 'referral' } } },
-        },
-        include: {
-          job: {
-            include: { lead: { select: { address: true, source: true } } },
-          },
-        },
-        orderBy: { sentAt: 'desc' },
-      })
-    : []
+  const offerCount     = offerSentByTab.offers.length + assignedNoQuoteCount
+  const activeCount    = regularActiveCount + offerSentByTab.active.length
+  const completedCount = regularCompletedCount + assignedSubmittedCount + offerSentByTab.completed.length
 
   const activeJobs = tab === 'active'
     ? await prisma.job.findMany({
-        where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] } },
-        include: { lead: { select: { address: true } } },
+        where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] }, ...draftFilter },
+        include: { lead: { select: { address: true, source: true } } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : []
+
+  const assignedNoQuoteJobs = tab === 'offers'
+    ? await prisma.job.findMany({
+        where: { companyId: company.id, status: { in: ['ASSIGNED'] as never[] }, ...noQuoteFilter },
+        include: { lead: { select: { address: true, phase: true } } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : []
+
+  const assignedSubmittedJobs = tab === 'completed'
+    ? await prisma.job.findMany({
+        where: { companyId: company.id, status: { in: ['ASSIGNED', 'IN_PROGRESS'] as never[] }, ...submittedFilter },
+        include: {
+          lead: {
+            select: {
+              address: true,
+              source: true,
+              phase: true,
+              deals: {
+                take: 1,
+                select: {
+                  id: true,
+                  quotes: {
+                    orderBy: { version: 'desc' as never },
+                    take: 5,
+                    select: { id: true, status: true, version: true, subtotal: true, total: true, pdfUrl: true, submittedAt: true, lineItems: true },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       })
     : []
@@ -162,7 +176,26 @@ export default async function ContractorJobsPage({
   const completedJobs = tab === 'completed'
     ? await prisma.job.findMany({
         where: { companyId: company.id, status: { in: ['COMPLETED', 'VERIFIED'] as never[] } },
-        include: { lead: { select: { address: true } } },
+        include: {
+          lead: {
+            select: {
+              address: true,
+              source: true,
+              phase: true,
+              deals: {
+                take: 1,
+                select: {
+                  id: true,
+                  quotes: {
+                    orderBy: { version: 'desc' as never },
+                    take: 5,
+                    select: { id: true, status: true, version: true, subtotal: true, total: true, pdfUrl: true, submittedAt: true, lineItems: true },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       })
     : []
@@ -217,50 +250,55 @@ export default async function ContractorJobsPage({
 
       {/* New Offers */}
       {tab === 'offers' && (
-        pendingOffers.length === 0 && referralByTab.offers.length === 0 ? (
+        offerSentByTab.offers.length === 0 && assignedNoQuoteJobs.length === 0 ? (
           <EmptyState message="No new offers at the moment." />
         ) : (
           <div className="flex flex-col gap-4">
-            {/* Regular pending offers */}
-            {pendingOffers.map((offer) => {
-              const job = offer.job
-              const phase = job.phase
-              const price = formatPrice(job)
+            {offerSentByTab.offers.map((job) => {
+              const isReferral = job.lead.source === 'referral'
               return (
-                <div key={offer.id} className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6">
+                <div key={job.id} className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6">
                   <div className="flex flex-wrap gap-2 mb-3.5">
                     <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#eff4ff] text-[#2563eb]">
-                      NEW OFFER
+                      QUOTE REQUEST
                     </span>
-                    {phase && (
-                      <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-gray-100 text-gray-600">
-                        {PHASE_LABELS[phase] ?? phase}
+                    {isReferral && (
+                      <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#f5f3ff] text-[#7c3aed]">
+                        Referral
                       </span>
                     )}
                   </div>
-                  <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">{maskAddress(job.lead.address)}</h2>
-                  <div className="space-y-0.5 text-sm text-slate-600 mb-4">
+                  <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">
+                    {job.status === 'OFFER_SENT' && !isReferral ? maskAddress(job.lead.address) : job.lead.address}
+                  </h2>
+                  <div className="space-y-0.5 text-sm text-slate-600">
                     {job.serviceType && <p><b className="text-gray-900">Service:</b> {job.serviceType}</p>}
                     {job.scope && <p className="line-clamp-2"><b className="text-gray-900">Scope:</b> {job.scope}</p>}
-                    {price && <p><b className="text-gray-900">Price:</b> {price}</p>}
                     {job.timeline && <p><b className="text-gray-900">Timeline:</b> {job.timeline}</p>}
                   </div>
-                  <p className="text-[12.5px] text-gray-400 mb-4">
-                    Received {offer.sentAt.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  <p className="mt-4 px-4 py-3.5 rounded-[10px] text-sm italic text-[#1e40af] border border-[#dbe9ff] bg-[#f0f7ff]">
+                    {isReferral
+                      ? 'View plans, take measurements, and submit your quote.'
+                      : 'Review plans and measurements, then submit your quote.'}
                   </p>
-                  <OfferActions offerId={offer.id} />
+                  <p className="text-[12.5px] text-[#6b7280] mt-3 mb-4">
+                    Received {job.createdAt.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                  <Link
+                    href={isReferral ? `/contractor/jobs/${job.id}/quote` : `/contractor/jobs/${job.id}/estimation`}
+                    className="block w-full py-3 text-center text-sm font-bold text-white rounded-xl bg-[#2563eb] hover:bg-blue-700 transition-colors"
+                  >
+                    View Plans &amp; Submit Quote
+                  </Link>
                 </div>
               )
             })}
-            {/* Referral jobs with no quotes yet */}
-            {referralByTab.offers.map((job) => (
+            {/* ASSIGNED jobs with no quote yet — accepted but not started */}
+            {assignedNoQuoteJobs.map((job) => (
               <div key={job.id} className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6">
                 <div className="flex flex-wrap gap-2 mb-3.5">
                   <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#eff4ff] text-[#2563eb]">
                     QUOTE REQUEST
-                  </span>
-                  <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#f5f3ff] text-[#7c3aed]">
-                    Referral
                   </span>
                 </div>
                 <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">{job.lead.address}</h2>
@@ -270,13 +308,13 @@ export default async function ContractorJobsPage({
                   {job.timeline && <p><b className="text-gray-900">Timeline:</b> {job.timeline}</p>}
                 </div>
                 <p className="mt-4 px-4 py-3.5 rounded-[10px] text-sm italic text-[#1e40af] border border-[#dbe9ff] bg-[#f0f7ff]">
-                  View plans, take measurements, and submit your quote.
+                  Review plans and measurements, then submit your quote.
                 </p>
                 <p className="text-[12.5px] text-[#6b7280] mt-3 mb-4">
                   Received {job.createdAt.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
                 <Link
-                  href={`/contractor/jobs/${job.id}/quote`}
+                  href={`/contractor/jobs/${job.id}/estimation`}
                   className="block w-full py-3 text-center text-sm font-bold text-white rounded-xl bg-[#2563eb] hover:bg-blue-700 transition-colors"
                 >
                   View Plans &amp; Submit Quote
@@ -289,57 +327,31 @@ export default async function ContractorJobsPage({
 
       {/* Active Jobs */}
       {tab === 'active' && (
-        activeJobs.length === 0 && referralByTab.active.length === 0 ? (
+        activeJobs.length === 0 && offerSentByTab.active.length === 0 ? (
           <EmptyState message="No active jobs." />
         ) : (
           <div className="flex flex-col gap-4">
-            {/* Regular ASSIGNED/IN_PROGRESS jobs */}
-            {activeJobs.map((job) => {
-              const isInProgress = job.status === 'IN_PROGRESS'
-              const chipStyle = isInProgress
-                ? { background: '#fff7ed', color: '#b45309' }
-                : { background: '#e0f2fe', color: '#0369a1' }
-              const chipLabel = isInProgress ? 'IN PROGRESS' : 'ASSIGNED'
-              return (
-                <Link
-                  key={job.id}
-                  href={`/contractor/jobs/${job.id}`}
-                  className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6 hover:border-blue-300 transition-colors block"
-                >
-                  <div className="flex flex-wrap gap-2 mb-3.5">
-                    <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full" style={chipStyle}>
-                      {chipLabel}
-                    </span>
-                  </div>
-                  <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">{job.lead.address}</h2>
-                  <div className="space-y-0.5 text-sm text-slate-600 mb-4">
-                    {job.serviceType && <p><b className="text-gray-900">Service:</b> {job.serviceType}</p>}
-                    {job.timeline && <p><b className="text-gray-900">Timeline:</b> {job.timeline}</p>}
-                  </div>
-                  <div className="block w-full py-3 text-center text-sm font-bold text-white rounded-xl bg-gray-900">
-                    View Job Details
-                  </div>
-                </Link>
-              )
-            })}
-            {/* Referral jobs with draft quotes */}
-            {referralByTab.active.map((job) => (
+            {/* Regular ASSIGNED/IN_PROGRESS jobs with draft */}
+            {activeJobs.map((job) => (
               <Link
                 key={job.id}
-                href={`/contractor/jobs/${job.id}/quote`}
+                href={`/contractor/jobs/${job.id}/estimation`}
                 className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6 hover:border-blue-300 transition-colors block"
               >
                 <div className="flex flex-wrap gap-2 mb-3.5">
                   <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#fff7ed] text-[#b45309]">
                     DRAFT QUOTE
                   </span>
-                  <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#f5f3ff] text-[#7c3aed]">
-                    Referral
-                  </span>
+                  {job.lead.source === 'referral' && (
+                    <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#f5f3ff] text-[#7c3aed]">
+                      Referral
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">{job.lead.address}</h2>
                 <div className="space-y-0.5 text-sm text-slate-600 mb-4">
                   {job.serviceType && <p><b className="text-gray-900">Service:</b> {job.serviceType}</p>}
+                  {job.scope && <p className="line-clamp-2"><b className="text-gray-900">Scope:</b> {job.scope}</p>}
                   {job.timeline && <p><b className="text-gray-900">Timeline:</b> {job.timeline}</p>}
                 </div>
                 <p className="text-[12.5px] text-[#6b7280] mb-4">Draft saved – not submitted yet</p>
@@ -348,45 +360,52 @@ export default async function ContractorJobsPage({
                 </div>
               </Link>
             ))}
-          </div>
-        )
-      )}
-
-      {/* Completed Jobs */}
-      {tab === 'completed' && (
-        completedJobs.length === 0 && referralByTab.completed.length === 0 ? (
-          <EmptyState message="No completed jobs yet." />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {/* Regular COMPLETED/VERIFIED jobs */}
-            {completedJobs.map((job) => {
-              const meta = STATUS_META[job.status as string]
+            {/* OFFER_SENT jobs with draft quotes */}
+            {offerSentByTab.active.map((job) => {
+              const href = job.lead.source === 'referral'
+                ? `/contractor/jobs/${job.id}/quote`
+                : `/contractor/jobs/${job.id}/estimation`
               return (
                 <Link
                   key={job.id}
-                  href={`/contractor/jobs/${job.id}`}
+                  href={href}
                   className="rounded-2xl border border-gray-200 shadow-sm bg-white p-6 hover:border-blue-300 transition-colors block"
                 >
                   <div className="flex flex-wrap gap-2 mb-3.5">
-                    {meta && (
-                      <span className={`text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full ${meta.color}`}>
-                        {meta.label.toUpperCase()}
+                    <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#fff7ed] text-[#b45309]">
+                      DRAFT QUOTE
+                    </span>
+                    {job.lead.source === 'referral' && (
+                      <span className="text-[11px] font-bold tracking-[0.04em] px-[11px] py-[5px] rounded-full bg-[#f5f3ff] text-[#7c3aed]">
+                        Referral
                       </span>
                     )}
                   </div>
                   <h2 className="text-[22px] font-extrabold text-gray-900 mb-3">{job.lead.address}</h2>
                   <div className="space-y-0.5 text-sm text-slate-600 mb-4">
                     {job.serviceType && <p><b className="text-gray-900">Service:</b> {job.serviceType}</p>}
+                    {job.scope && <p className="line-clamp-2"><b className="text-gray-900">Scope:</b> {job.scope}</p>}
                     {job.timeline && <p><b className="text-gray-900">Timeline:</b> {job.timeline}</p>}
                   </div>
-                  <div className="block w-full py-3 text-center text-sm font-bold rounded-xl border border-gray-200 text-gray-700">
-                    View Job Details
+                  <p className="text-[12.5px] text-[#6b7280] mb-4">Draft saved – not submitted yet</p>
+                  <div className="block w-full py-3 text-center text-sm font-bold text-white rounded-xl bg-[#2563eb]">
+                    Continue Quote →
                   </div>
                 </Link>
               )
             })}
-            {/* Referral jobs with submitted/accepted quotes */}
-            {referralByTab.completed.map((job) => {
+          </div>
+        )
+      )}
+
+      {/* Completed Jobs */}
+      {tab === 'completed' && (
+        completedJobs.length === 0 && offerSentByTab.completed.length === 0 && assignedSubmittedJobs.length === 0 ? (
+          <EmptyState message="No completed jobs yet." />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {/* All completed jobs — unified vcard style */}
+            {[...completedJobs, ...offerSentByTab.completed, ...assignedSubmittedJobs].map((job) => {
               const deal = job.lead.deals[0]
               const allQuotes = deal?.quotes ?? []
               const submittedQuotes = allQuotes.filter(q => ['submitted', 'pending_review', 'accepted'].includes(q.status))
@@ -398,14 +417,19 @@ export default async function ContractorJobsPage({
                       <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
                         {job.lead.address.split(',')[0]}
                       </h2>
-                      <div style={{ display: 'flex', gap: 12, fontSize: 13, color: '#64748b', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 13, color: '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
                         {job.serviceType && <span>🏷️ {job.serviceType}</span>}
                         <span>✓ Completed</span>
                         <span>{submittedQuotes.length} quote version{submittedQuotes.length !== 1 ? 's' : ''}</span>
+                        {job.lead.source === 'referral' && (
+                          <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed' }}>
+                            Referral
+                          </span>
+                        )}
                       </div>
                     </div>
                     <Link
-                      href={`/contractor/jobs/${job.id}/quote`}
+                      href={job.lead.source === 'referral' ? `/contractor/jobs/${job.id}/quote` : `/contractor/jobs/${job.id}/estimation`}
                       style={{ flexShrink: 0, background: '#f8fafc', color: '#2563eb', border: '1px solid #e7e8ef', borderRadius: 11, fontWeight: 700, fontSize: 13, padding: '8px 13px', textDecoration: 'none', whiteSpace: 'nowrap' }}
                     >
                       + New version

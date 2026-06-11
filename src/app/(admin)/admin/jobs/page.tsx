@@ -225,7 +225,7 @@ export default async function JobBoardPage({
                   )}
                   {(job.status as string) === 'READY' && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {job.lead.deals[0]?.id && (
                         <Link
                           href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
@@ -254,7 +254,7 @@ export default async function JobBoardPage({
                   )}
                   {(job.status as string) === 'OFFER_SENT' && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {job.lead.deals[0]?.id && (
                         <Link
                           href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
@@ -272,7 +272,7 @@ export default async function JobBoardPage({
                   )}
                   {(['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED'] as const).includes(job.status as never) && (
                     <>
-                      {job.lead.source === 'referral' && job.lead.deals[0]?.id && (
+                      {job.lead.deals[0]?.id && (
                         <Link
                           href={`/admin/sales/deals/${job.lead.deals[0].id}/estimation`}
                           className="flex-1 sm:flex-none text-center px-3 py-2 sm:py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"

@@ -155,11 +155,20 @@ function getNextStage(current: string): string | null {
 }
 
 export async function moveDealToNextStage(dealId: string) {
-  const deal = await prisma.deal.findUnique({ where: { id: dealId } })
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { leadId: true, currentStage: true, phase: true } })
   if (!deal) return
   const next = getNextStage(deal.currentStage)
   if (!next) return
   await prisma.deal.update({ where: { id: dealId }, data: { currentStage: next } })
+  if (next === 'ESTIMATION') {
+    const existingJob = await prisma.job.findFirst({ where: { leadId: deal.leadId } })
+    if (!existingJob) {
+      await prisma.job.create({
+        data: { leadId: deal.leadId, status: 'PENDING' as never, phase: deal.phase ?? null },
+      })
+      revalidatePath('/admin/jobs')
+    }
+  }
   revalidatePath('/sales/pipeline')
   revalidatePath(`/sales/deals/${dealId}`)
 }
@@ -202,27 +211,26 @@ export async function markDealWon(dealId: string) {
   const isReferral = deal.lead.source === 'referral'
 
   if (isReferral) {
-    // Referral deals already have a job — just mark the deal won
-    await prisma.deal.update({
-      where: { id: dealId },
-      data: { status: 'won' },
-    })
+    await prisma.deal.update({ where: { id: dealId }, data: { status: 'won' } })
   } else {
-    await prisma.$transaction([
-      prisma.deal.update({
-        where: { id: dealId },
-        data: { status: 'won' },
-      }),
-      prisma.job.create({
-        data: {
-          leadId: deal.leadId,
-          status: 'PENDING' as never,
-          phase: deal.phase,
-          priceType: acceptedQuote?.total ? 'fixed' : null,
-          priceFixed: acceptedQuote?.total ?? null,
-        },
-      }),
-    ])
+    const existingJob = await prisma.job.findFirst({ where: { leadId: deal.leadId } })
+    if (existingJob) {
+      // Job already created at ESTIMATION stage — just mark deal won
+      await prisma.deal.update({ where: { id: dealId }, data: { status: 'won' } })
+    } else {
+      await prisma.$transaction([
+        prisma.deal.update({ where: { id: dealId }, data: { status: 'won' } }),
+        prisma.job.create({
+          data: {
+            leadId: deal.leadId,
+            status: 'PENDING' as never,
+            phase: deal.phase,
+            priceType: acceptedQuote?.total ? 'fixed' : null,
+            priceFixed: acceptedQuote?.total ?? null,
+          },
+        }),
+      ])
+    }
   }
 
   revalidatePath('/sales/pipeline')
@@ -405,21 +413,15 @@ export async function acceptQuote(quoteId: string, dealId: string) {
     select: { lead: { select: { source: true, jobs: { select: { id: true, companyId: true, status: true } } } } },
   })
   const TERMINAL = ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED', 'CANCELLED']
-  const referralJob = deal?.lead.source === 'referral'
-    ? deal.lead.jobs.find(j => j.companyId && !TERMINAL.includes(j.status as string))
-    : null
-  if (referralJob) {
+  const activeJob = deal?.lead.jobs.find(j => j.companyId && !TERMINAL.includes(j.status as string))
+  if (activeJob) {
     await prisma.$transaction([
       prisma.job.update({
-        where: { id: referralJob.id },
-        data: {
-          status: 'ASSIGNED' as never,
-          priceType: 'fixed',
-          priceFixed: quote.total,
-        },
+        where: { id: activeJob.id },
+        data: { status: 'ASSIGNED' as never, priceType: 'fixed', priceFixed: quote.total },
       }),
       prisma.jobOffer.updateMany({
-        where: { jobId: referralJob.id, status: 'pending' },
+        where: { jobId: activeJob.id, status: 'pending' },
         data: { status: 'accepted', respondedAt: new Date() },
       }),
     ])

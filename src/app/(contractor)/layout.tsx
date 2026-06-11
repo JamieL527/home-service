@@ -8,31 +8,15 @@ import { prisma } from '@/lib/prisma'
 export default async function ContractorLayout({ children }: { children: React.ReactNode }) {
   const { company, email } = await requireContractorUser()
 
-  const [regularOfferCount, referralOfferCount] = await Promise.all([
-    prisma.jobOffer.count({
-      where: {
-        companyId: company.id,
-        status: 'pending',
-        job: {
-          status: { in: ['PENDING', 'READY', 'OFFER_SENT'] as never[] },
-          lead: { source: { not: 'referral' } },
-        },
-      },
-    }),
-    // Only count referral OFFER_SENT jobs where the contractor hasn't started a quote yet
-    // (matches classifyReferralJob: hasDraft → 'active', hasSubmitted → 'completed', else → 'offers')
+  const [offerCount] = await Promise.all([
     prisma.job.count({
       where: {
         companyId: company.id,
         status: { in: ['OFFER_SENT'] as never[] },
-        lead: {
-          source: 'referral',
-          deals: { none: { quotes: { some: {} } } },
-        },
+        lead: { deals: { none: { quotes: { some: {} } } } },
       },
     }),
   ])
-  const offerCount = regularOfferCount + referralOfferCount
   const registrationLabel = company.registrationType === 'referral' ? 'Referral Network' : 'Direct Outreach & Q.C.'
 
   return (

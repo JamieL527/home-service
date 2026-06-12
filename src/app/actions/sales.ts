@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { sendQuoteEmail } from '@/lib/email'
+import { sendMail } from '@/lib/mailer'
 import { generateInvoicePdf } from '@/lib/generate-invoice'
 import { createClient } from '@supabase/supabase-js'
 
@@ -111,7 +113,7 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
       lead: {
         include: {
           contacts: true,
-          jobs: { where: { companyId: { not: null } }, include: { company: { select: { logoUrl: true } } }, take: 1 },
+          jobs: { where: { companyId: { not: null } }, take: 1 },
         },
       },
       quotes: { orderBy: { version: 'desc' }, take: 5, select: { pdfUrl: true, version: true } },
@@ -121,8 +123,6 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
   const contactEmail = deal.lead.contacts.find(c => c.email)?.email
   const toEmail = contactEmail || process.env.RESEND_TO_OVERRIDE || ''
   if (!toEmail) return
-  const logoUrl = deal.lead.jobs[0]?.company?.logoUrl ?? null
-
   // Find the PDF from the contractor's submitted quote
   const pdfUrl = deal.quotes.find(q => q.pdfUrl)?.pdfUrl ?? null
   let pdfBuffer: Buffer | null = null
@@ -143,7 +143,6 @@ async function maybeSendQuoteEmail(dealId: string, lineItems: Array<{ descriptio
     tax,
     total,
     notes,
-    logoUrl,
     pdfBuffer,
   }).catch(err => console.error('Failed to send quote email:', err))
 }
@@ -297,6 +296,9 @@ export async function createQuote(
       await prisma.deal.update({ where: { id: dealId }, data: { currentStage: 'QUOTE_SENT' } })
     }
   }
+  if (data.submit && isContractorRole) {
+    notifyStaffQuoteSubmitted(dealId, data.total)
+  }
   revalidatePath(`/sales/deals/${dealId}`)
   revalidatePath(`/contractor/jobs`)
   revalidatePath('/sales/pipeline')
@@ -352,37 +354,90 @@ export async function updateQuote(
       await prisma.deal.update({ where: { id: dealId }, data: { currentStage: 'QUOTE_SENT' } })
     }
   }
+  if (data.submit && isContractorRole2) {
+    notifyStaffQuoteSubmitted(dealId, data.total)
+  }
   revalidatePath(`/sales/deals/${dealId}`)
   revalidatePath('/sales/pipeline')
   revalidatePath('/admin/sales')
   return { pdfUrl }
 }
 
-export async function submitDraftQuote(quoteId: string, dealId: string) {
-  const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
-  if (!quote) return
 
-  await prisma.quote.update({
-    where: { id: quoteId },
-    data: { status: 'submitted', submittedAt: new Date() },
-  })
+function notifyStaffQuoteSubmitted(dealId: string, totalAmount: number | null) {
+  ;(async () => {
+    try {
+      const deal = await prisma.deal.findUnique({
+        where: { id: dealId },
+        select: {
+          projectType: true,
+          projectName: true,
+          ownerId: true,
+          lead: { select: { jobs: { where: { companyId: { not: null } }, take: 1, select: { company: { select: { name: true } } } } } },
+        },
+      })
 
-  // Auto-advance deal stage to QUOTE_SENT if not already past it
-  const QUOTE_SENT_IDX = STAGE_ORDER.indexOf('QUOTE_SENT')
-  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { currentStage: true } })
-  if (deal && STAGE_ORDER.indexOf(deal.currentStage) < QUOTE_SENT_IDX) {
-    await prisma.deal.update({
-      where: { id: dealId },
-      data: { currentStage: 'QUOTE_SENT' },
-    })
-  }
+      let recipientEmail: string | null = null
+      let recipientName: string | null = null
 
-  const lineItems = (quote.lineItems as Array<{ description: string; quantity: number; unitPrice: number }>) ?? []
-  await maybeSendQuoteEmail(dealId, lineItems, quote.subtotal ?? 0, quote.tax ?? 0, quote.total ?? 0, quote.notes, quote.version)
+      if (deal?.ownerId) {
+        const owner = await prisma.user.findUnique({
+          where: { id: deal.ownerId },
+          select: { email: true, firstName: true },
+        })
+        recipientEmail = owner?.email ?? null
+        recipientName = owner?.firstName ?? null
+      }
+      if (!recipientEmail) {
+        const lastStaff = await prisma.dealComment.findFirst({
+          where: { dealId, author: { role: { in: ['SALES', 'ADMIN'] as never[] } } },
+          orderBy: { createdAt: 'desc' },
+          select: { author: { select: { email: true, firstName: true } } },
+        })
+        recipientEmail = lastStaff?.author.email ?? null
+        recipientName = lastStaff?.author.firstName ?? null
+      }
+      if (!recipientEmail) {
+        const admin = await prisma.user.findFirst({
+          where: { role: 'ADMIN' as never },
+          select: { email: true, firstName: true },
+        })
+        recipientEmail = admin?.email ?? null
+        recipientName = admin?.firstName ?? null
+      }
 
-  revalidatePath(`/sales/deals/${dealId}`)
-  revalidatePath('/sales/pipeline')
-  revalidatePath('/admin/sales')
+      if (recipientEmail) {
+        const headersList = await headers()
+        const origin = headersList.get('origin') ?? 'https://constructionmarket.ca'
+        const dealUrl = `${origin}/sales/deals/${dealId}/estimation`
+        const projectLabel = deal?.projectType || deal?.projectName || 'a project'
+        const contractorName = deal?.lead.jobs[0]?.company?.name || 'The contractor'
+        const total = totalAmount ? `$${totalAmount.toLocaleString('en-CA', { minimumFractionDigits: 2 })}` : null
+
+        await sendMail({
+          to: recipientEmail,
+          subject: `Quote submitted — ${projectLabel}`,
+          text: `Hi ${recipientName ?? 'there'}, ${contractorName} has submitted a quote for ${projectLabel}. View it at ${dealUrl}`,
+          html: quoteSubmittedEmailHtml({ firstName: recipientName ?? 'there', contractorName, projectLabel, total, dealUrl }),
+        })
+      }
+    } catch (e) {
+      console.error('[quote submitted email]', e)
+    }
+  })()
+}
+
+function quoteSubmittedEmailHtml({ firstName, contractorName, projectLabel, total, dealUrl }: {
+  firstName: string
+  contractorName: string
+  projectLabel: string
+  total: string | null
+  dealUrl: string
+}): string {
+  const totalRow = total
+    ? `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#0a0a0a;border-radius:4px;margin:0 0 24px 0;"><tr><td style="padding:16px 20px;font-family:Arial,sans-serif;border-left:2px solid #00e5ff;"><p style="margin:0 0 4px 0;color:#aaaaaa;font-size:12px;font-family:Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;">Quote total</p><p style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;font-family:Arial,sans-serif;">${total}</p></td></tr></table>`
+    : ''
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Quote submitted – Construction Market</title></head><body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:20px 0;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;"><tr><td style="background-color:#0a0a0a;padding:30px 40px 20px 40px;text-align:left;"><p style="margin:0 0 4px 0;color:#ffffff;font-size:13px;font-family:Arial,sans-serif;">Hi ${firstName},</p><p style="margin:0;color:#aaaaaa;font-size:13px;font-family:Arial,sans-serif;line-height:1.5;">A contractor has submitted a quote for your review.</p></td></tr><tr><td style="background-color:#0a0a0a;padding:10px 40px 30px 40px;text-align:center;"><h1 style="margin:0 0 8px 0;color:#ffffff;font-size:26px;font-weight:bold;font-family:Arial,sans-serif;">Quote Submitted</h1><p style="margin:0;color:#00e5ff;font-size:13px;font-family:Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;">${projectLabel}</p></td></tr><tr><td style="background-color:#13131f;padding:30px 40px;border-left:3px solid #00e5ff;"><p style="margin:0 0 20px 0;color:#cccccc;font-size:14px;font-family:Arial,sans-serif;line-height:1.6;"><strong style="color:#ffffff;">${contractorName}</strong> has submitted a quote and it's ready for your review.</p>${totalRow}<table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center"><a href="${dealUrl}" style="display:block;background-color:#00e5ff;color:#000000;text-decoration:none;font-size:14px;font-weight:bold;font-family:Arial,sans-serif;padding:14px 20px;text-align:center;border-radius:4px;">Review Quote →</a></td></tr></table></td></tr><tr><td style="background-color:#0a0a0a;padding:24px 40px 30px 40px;border-top:1px solid #222222;"><p style="margin:0 0 4px 0;color:#aaaaaa;font-size:13px;font-family:Arial,sans-serif;">Best regards,</p><p style="margin:0 0 2px 0;color:#ffffff;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">The Construction Market team</p><p style="margin:0;color:#888888;font-size:12px;font-family:Arial,sans-serif;">build@constructionmarket.ca &nbsp;|&nbsp; 437-450-3116 &nbsp;|&nbsp; constructionmarket.ca</p></td></tr></table></td></tr></table></body></html>`
 }
 
 export async function deleteQuote(quoteId: string, dealId: string) {

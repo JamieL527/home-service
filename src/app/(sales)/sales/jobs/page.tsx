@@ -67,9 +67,16 @@ export default async function SalesJobsPage({
     },
   })
 
-  const allJobs = await prisma.job.findMany({
-    select: { status: true, phase: true, lead: { select: { phase: true } } },
-  })
+  const [allJobs, staffUsers] = await Promise.all([
+    prisma.job.findMany({
+      select: { status: true, phase: true, lead: { select: { phase: true } } },
+    }),
+    prisma.user.findMany({
+      where: { role: { in: ['SALES', 'ADMIN'] as never[] } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+      orderBy: { firstName: 'asc' },
+    }),
+  ])
 
   const counts = {
     PENDING:     allJobs.filter(j => j.status === 'PENDING' as never).length,
@@ -96,7 +103,7 @@ export default async function SalesJobsPage({
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Jobs</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage jobs from injection to completion</p>
         </div>
-        <NewReferralLeadButton />
+        <NewReferralLeadButton staffUsers={staffUsers} />
       </div>
 
       {/* Stats */}

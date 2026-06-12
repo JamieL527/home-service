@@ -73,6 +73,7 @@ export async function addComment(dealId: string, content: string, authorId: stri
           where: { id: dealId },
           select: {
             projectName: true,
+            projectType: true,
             leadId: true,
             ownerId: true,
             lead: {
@@ -97,6 +98,7 @@ export async function addComment(dealId: string, content: string, authorId: stri
             : author.email)
         : 'Construction Market Team'
       const projectName = deal.projectName || deal.lead.address
+      const contractorProjectName = deal.projectType || 'New project'
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
       const isContractor = author.role === 'CONTRACTOR'
@@ -146,7 +148,7 @@ export async function addComment(dealId: string, content: string, authorId: stri
             to: contractorEmail,
             authorName,
             content,
-            projectName,
+            projectName: contractorProjectName,
             dealUrl: `${baseUrl}/contractor/jobs`,
           })
         }

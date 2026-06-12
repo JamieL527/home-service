@@ -14,7 +14,6 @@ export async function sendQuoteEmail({
   tax,
   total,
   notes,
-  logoUrl,
   pdfBuffer,
 }: {
   to: string
@@ -26,7 +25,6 @@ export async function sendQuoteEmail({
   tax: number
   total: number
   notes?: string | null
-  logoUrl?: string | null
   pdfBuffer?: Buffer | null
 }) {
   const recipient = process.env.RESEND_TO_OVERRIDE || to
@@ -47,55 +45,7 @@ export async function sendQuoteEmail({
     )
     .join('')
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:32px 16px;">
-
-  ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="height:48px;max-width:180px;object-fit:contain;margin-bottom:20px;display:block;">` : `<p style="font-size:14px;color:#666;margin-bottom:24px;">Blue Jays On Air</p>`}
-
-  <h1 style="font-size:22px;font-weight:700;margin-bottom:4px;">Quote #${quoteVersion}</h1>
-  <p style="font-size:14px;color:#555;margin-bottom:24px;">${projectName}</p>
-
-  <p style="font-size:14px;margin-bottom:24px;">Hi ${clientName},<br><br>
-  Please find your quote below. If you have any questions, feel free to reach out.</p>
-
-  <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px;">
-    <thead>
-      <tr style="background:#f8f8f8;">
-        <th style="padding:10px 12px;text-align:left;font-weight:600;color:#555;">Description</th>
-        <th style="padding:10px 12px;text-align:center;font-weight:600;color:#555;">Qty</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:600;color:#555;">Unit Price</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:600;color:#555;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>${itemRows}</tbody>
-  </table>
-
-  <table style="width:200px;margin-left:auto;font-size:14px;margin-bottom:24px;">
-    <tr>
-      <td style="padding:4px 0;color:#555;">Subtotal</td>
-      <td style="padding:4px 0;text-align:right;">${fmt(subtotal)}</td>
-    </tr>
-    <tr>
-      <td style="padding:4px 0;color:#555;">Tax</td>
-      <td style="padding:4px 0;text-align:right;">${fmt(tax)}</td>
-    </tr>
-    <tr style="font-weight:700;font-size:16px;border-top:2px solid #1a1a1a;">
-      <td style="padding:8px 0;">Total</td>
-      <td style="padding:8px 0;text-align:right;">${fmt(total)}</td>
-    </tr>
-  </table>
-
-  ${notes ? `<p style="font-size:13px;color:#555;background:#f8f8f8;padding:12px;border-radius:6px;">${notes}</p>` : ''}
-
-  <p style="font-size:12px;color:#aaa;margin-top:32px;border-top:1px solid #eee;padding-top:16px;">
-    This quote was prepared by Blue Jays On Air.
-  </p>
-
-</body>
-</html>`
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Quote #${quoteVersion} – Construction Market</title></head><body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:20px 0;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;"><tr><td style="background-color:#0a0a0a;padding:30px 40px 20px 40px;text-align:left;"><p style="margin:0 0 4px 0;color:#ffffff;font-size:13px;font-family:Arial,sans-serif;">Hi ${clientName},</p><p style="margin:0;color:#aaaaaa;font-size:13px;font-family:Arial,sans-serif;line-height:1.5;">Please find your quote below. If you have any questions, feel free to reach out.</p></td></tr><tr><td style="background-color:#0a0a0a;padding:10px 40px 30px 40px;text-align:center;"><h1 style="margin:0 0 8px 0;color:#ffffff;font-size:26px;font-weight:bold;font-family:Arial,sans-serif;">Quote #${quoteVersion}</h1><p style="margin:0;color:#00e5ff;font-size:13px;font-family:Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;">${projectName}</p></td></tr><tr><td style="background-color:#ffffff;padding:30px 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-size:14px;margin-bottom:24px;"><thead><tr style="background-color:#f4f4f4;"><th style="padding:10px 12px;text-align:left;font-weight:600;color:#555555;font-family:Arial,sans-serif;border-bottom:2px solid #e5e5e5;">Description</th><th style="padding:10px 12px;text-align:center;font-weight:600;color:#555555;font-family:Arial,sans-serif;border-bottom:2px solid #e5e5e5;">Qty</th><th style="padding:10px 12px;text-align:right;font-weight:600;color:#555555;font-family:Arial,sans-serif;border-bottom:2px solid #e5e5e5;">Unit Price</th><th style="padding:10px 12px;text-align:right;font-weight:600;color:#555555;font-family:Arial,sans-serif;border-bottom:2px solid #e5e5e5;">Amount</th></tr></thead><tbody>${itemRows}</tbody></table><table cellpadding="0" cellspacing="0" border="0" style="width:220px;margin-left:auto;font-size:14px;font-family:Arial,sans-serif;margin-bottom:24px;"><tr><td style="padding:5px 0;color:#555555;">Subtotal</td><td style="padding:5px 0;text-align:right;color:#1a1a1a;">${fmt(subtotal)}</td></tr><tr><td style="padding:5px 0;color:#555555;">Tax</td><td style="padding:5px 0;text-align:right;color:#1a1a1a;">${fmt(tax)}</td></tr><tr><td colspan="2" style="padding:0;border-top:2px solid #0a0a0a;"></td></tr><tr><td style="padding:8px 0 0 0;font-weight:bold;font-size:16px;color:#0a0a0a;">Total</td><td style="padding:8px 0 0 0;text-align:right;font-weight:bold;font-size:16px;color:#0a0a0a;">${fmt(total)}</td></tr></table>${notes ? `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;"><tr><td style="background-color:#f8f8f8;border-left:3px solid #00e5ff;padding:12px 16px;font-size:13px;color:#555555;font-family:Arial,sans-serif;line-height:1.6;">${notes}</td></tr></table>` : ''}</td></tr><tr><td style="background-color:#0a0a0a;padding:24px 40px 30px 40px;border-top:1px solid #222222;"><p style="margin:0 0 4px 0;color:#aaaaaa;font-size:13px;font-family:Arial,sans-serif;">Best regards,</p><p style="margin:0 0 2px 0;color:#ffffff;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">The Construction Market team</p><p style="margin:0;color:#888888;font-size:12px;font-family:Arial,sans-serif;">build@constructionmarket.ca &nbsp;|&nbsp; 437-450-3116 &nbsp;|&nbsp; constructionmarket.ca</p></td></tr></table></td></tr></table></body></html>`
 
   await resend.emails.send({
     from,
@@ -131,21 +81,6 @@ export async function sendCommentNotificationEmail({
     from,
     to: recipient,
     subject: `New comment on ${projectName}`,
-    html: `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:32px 16px;">
-  <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">New comment from ${authorName}</h2>
-  <p style="font-size:13px;color:#888;margin-bottom:20px;">${projectName}</p>
-  <div style="background:#f8f8f8;border-left:3px solid #6366f1;padding:12px 16px;border-radius:4px;font-size:14px;color:#333;margin-bottom:24px;">
-    ${content}
-  </div>
-  <a href="${dealUrl}" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;">View Conversation →</a>
-  <p style="font-size:12px;color:#aaa;margin-top:32px;border-top:1px solid #eee;padding-top:16px;">
-    You received this because you are involved in this project.
-  </p>
-</body>
-</html>`,
+    html: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New comment – Construction Market</title></head><body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:20px 0;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;"><tr><td style="background-color:#0a0a0a;padding:30px 40px 20px 40px;text-align:left;"><p style="margin:0;color:#aaaaaa;font-size:13px;font-family:Arial,sans-serif;line-height:1.5;">New activity on your project.</p></td></tr><tr><td style="background-color:#0a0a0a;padding:10px 40px 30px 40px;text-align:center;"><h1 style="margin:0 0 8px 0;color:#ffffff;font-size:26px;font-weight:bold;font-family:Arial,sans-serif;">New Comment</h1><p style="margin:0;color:#00e5ff;font-size:13px;font-family:Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;">${projectName}</p></td></tr><tr><td style="background-color:#13131f;padding:30px 40px;border-left:3px solid #00e5ff;"><p style="margin:0 0 6px 0;color:#ffffff;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">${authorName}</p><table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#0a0a0a;border-radius:4px;margin:0 0 24px 0;"><tr><td style="padding:16px 20px;color:#cccccc;font-size:13px;font-family:Arial,sans-serif;line-height:1.6;border-left:2px solid #00e5ff;">${content}</td></tr></table><table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center"><a href="${dealUrl}" style="display:block;background-color:#00e5ff;color:#000000;text-decoration:none;font-size:14px;font-weight:bold;font-family:Arial,sans-serif;padding:14px 20px;text-align:center;border-radius:4px;">View Conversation →</a></td></tr></table></td></tr><tr><td style="background-color:#0a0a0a;padding:24px 40px 30px 40px;border-top:1px solid #222222;"><p style="margin:0 0 4px 0;color:#888888;font-size:12px;font-family:Arial,sans-serif;">You received this because you are involved in this project.</p><p style="margin:8px 0 0 0;color:#888888;font-size:12px;font-family:Arial,sans-serif;">build@constructionmarket.ca &nbsp;|&nbsp; 437-450-3116 &nbsp;|&nbsp; constructionmarket.ca</p></td></tr></table></td></tr></table></body></html>`,
   })
 }

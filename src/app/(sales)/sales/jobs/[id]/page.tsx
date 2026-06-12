@@ -32,23 +32,30 @@ function ReadField({ label, value }: { label: string; value: string | null | und
 
 export default async function SalesJobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: {
-      lead: {
-        select: {
-          id: true, address: true, phase: true, source: true, businessName: true,
-          contacts: { take: 1 },
-          deals: { take: 1, select: { id: true } },
+  const [job, staffUsers] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: {
+        lead: {
+          select: {
+            id: true, address: true, phase: true, source: true, businessName: true,
+            contacts: { take: 1 },
+            deals: { take: 1, select: { id: true, ownerId: true } },
+          },
+        },
+        company: { select: { name: true, contactName: true, contactPhone: true } },
+        offers: {
+          include: { company: { select: { name: true } } },
+          orderBy: { sentAt: 'desc' },
         },
       },
-      company: { select: { name: true, contactName: true, contactPhone: true } },
-      offers: {
-        include: { company: { select: { name: true } } },
-        orderBy: { sentAt: 'desc' },
-      },
-    },
-  })
+    }),
+    prisma.user.findMany({
+      where: { role: { in: ['SALES', 'ADMIN'] as never[] } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+      orderBy: { firstName: 'asc' },
+    }),
+  ])
 
   if (!job) notFound()
 
@@ -75,6 +82,11 @@ export default async function SalesJobDetailPage({ params }: { params: Promise<{
   const timelineEnd = job.timeline?.match(/End: (\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
   const leadContact = job.lead.contacts[0] ?? null
   const dealId = job.lead.deals[0]?.id
+  const dealOwnerId = job.lead.deals[0]?.ownerId ?? null
+  const dealOwner = dealOwnerId ? staffUsers.find(u => u.id === dealOwnerId) ?? null : null
+  const ownerDisplayName = dealOwner
+    ? (dealOwner.firstName || dealOwner.lastName ? `${dealOwner.firstName ?? ''} ${dealOwner.lastName ?? ''}`.trim() : dealOwner.email)
+    : null
 
   async function handleReferralSave(formData: FormData) {
     'use server'
@@ -90,6 +102,7 @@ export default async function SalesJobDetailPage({ params }: { params: Promise<{
       scope: formData.get('scope') as string,
       timelineStart: formData.get('timelineStart') as string || undefined,
       timelineEnd: formData.get('timelineEnd') as string || undefined,
+      ownerId: formData.get('ownerId') as string || undefined,
     })
     redirect('/sales/jobs')
   }
@@ -144,6 +157,21 @@ export default async function SalesJobDetailPage({ params }: { params: Promise<{
                     ))}
                   </select>
                 </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Responsible</h2>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5">Owner</label>
+                <select name="ownerId" defaultValue={dealOwnerId ?? ''} className={inputCls}>
+                  <option value="">— Select owner —</option>
+                  {staffUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.firstName || u.lastName ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() : u.email}
+                    </option>
+                  ))}
+                </select>
               </div>
             </section>
 
@@ -213,6 +241,7 @@ export default async function SalesJobDetailPage({ params }: { params: Promise<{
                 <ReadField label="Project Type" value={job.serviceType} />
                 <ReadField label="Contractor Type" value={job.contractorType} />
                 <ReadField label="Timeline" value={job.timeline} />
+                {ownerDisplayName && <ReadField label="Responsible" value={ownerDisplayName} />}
               </div>
             </section>
             {job.scope && (

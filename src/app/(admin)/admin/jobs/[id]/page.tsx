@@ -41,29 +41,36 @@ function ReadField({ label, value }: { label: string; value: string | null | und
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: {
-      lead: {
-        select: {
-          id: true, address: true, phase: true, source: true, businessName: true,
-          contacts: { take: 1 },
-          deals: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            include: {
-              quotes: { where: { status: 'accepted' }, orderBy: { version: 'desc' }, take: 1 },
+  const [job, staffUsers] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: {
+        lead: {
+          select: {
+            id: true, address: true, phase: true, source: true, businessName: true,
+            contacts: { take: 1 },
+            deals: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              include: {
+                quotes: { where: { status: 'accepted' }, orderBy: { version: 'desc' }, take: 1 },
+              },
             },
           },
         },
+        company: { select: { name: true, contactName: true, contactPhone: true } },
+        offers: {
+          include: { company: { select: { name: true } } },
+          orderBy: { sentAt: 'desc' },
+        },
       },
-      company: { select: { name: true, contactName: true, contactPhone: true } },
-      offers: {
-        include: { company: { select: { name: true } } },
-        orderBy: { sentAt: 'desc' },
-      },
-    },
-  })
+    }),
+    prisma.user.findMany({
+      where: { role: { in: ['SALES', 'ADMIN'] as never[] } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+      orderBy: { firstName: 'asc' },
+    }),
+  ])
 
   if (!job) notFound()
 
@@ -90,6 +97,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       scope: formData.get('scope') as string,
       timelineStart: formData.get('timelineStart') as string || undefined,
       timelineEnd: formData.get('timelineEnd') as string || undefined,
+      ownerId: formData.get('ownerId') as string || undefined,
     })
     redirect('/admin/jobs')
   }
@@ -102,6 +110,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const referralDeal = isReferral ? anyDeal : null
   const acceptedQuote = (wonDeal ?? referralDeal)?.quotes[0] ?? null
   const fromDeal = !!wonDeal
+  const dealOwnerId = (referralDeal as { ownerId?: string | null } | null)?.ownerId ?? null
+  const dealOwner = dealOwnerId ? staffUsers.find(u => u.id === dealOwnerId) ?? null : null
+  const ownerDisplayName = dealOwner
+    ? (dealOwner.firstName || dealOwner.lastName ? `${dealOwner.firstName ?? ''} ${dealOwner.lastName ?? ''}`.trim() : dealOwner.email)
+    : null
 
   // Derive scope text from deal.notes or accepted quote line items
   let dealScope = ''
@@ -237,6 +250,21 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             </section>
 
             <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Responsible</h2>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5">Owner</label>
+                <select name="ownerId" defaultValue={dealOwnerId ?? ''} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200">
+                  <option value="">— Select owner —</option>
+                  {staffUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.firstName || u.lastName ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() : u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </section>
+
+            <section className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
               <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-4">Contact Info</h2>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -346,6 +374,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               <div className="grid grid-cols-2 gap-4">
                 <ReadField label="Address" value={job.lead.address} />
                 <ReadField label="Phase" value={phase ? (PHASE_LABELS[phase] ?? phase) : null} />
+                {isReferral && ownerDisplayName && <ReadField label="Responsible" value={ownerDisplayName} />}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1.5">Service Type</label>
                   <input

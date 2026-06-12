@@ -11,7 +11,9 @@ const PHASE_LABELS: Record<string, string> = {
   P3: 'Phase 3', P4: 'Phase 4', P5: 'Phase 5', MLS: 'MLS',
 }
 
-export function NewReferralLeadButton() {
+type StaffUser = { id: string; firstName: string | null; lastName: string | null; email: string }
+
+export function NewReferralLeadButton({ staffUsers }: { staffUsers: StaffUser[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -36,6 +38,7 @@ export function NewReferralLeadButton() {
         contractorType: fd.get('contractorType') as string,
         scope: fd.get('scope') as string,
         timeline,
+        ownerId: (fd.get('ownerId') as string) || undefined,
       })
       setOpen(false)
       router.refresh()
@@ -94,6 +97,24 @@ export function NewReferralLeadButton() {
                       ))}
                     </select>
                   </div>
+                </div>
+              </section>
+
+              {/* Owner */}
+              <section>
+                <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-3">Responsible</h3>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">
+                    Owner <span className="text-red-500">*</span>
+                  </label>
+                  <select name="ownerId" required className={inputCls}>
+                    <option value="">— Select owner —</option>
+                    {staffUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName || u.lastName ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() : u.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </section>
 
